@@ -1,21 +1,17 @@
-import React from 'react';
-import { Terminal, ShieldAlert, Radio } from 'lucide-react';
+import React, { useMemo } from "react";
+import { useAlertStore, selectActiveFilters } from "../../store/alertStore";
+import { mapAlertToFeedItem } from "../../store/feedUtils";
+import { Terminal, ShieldAlert, Radio } from "lucide-react";
 
-interface NavigationRailProps {
-  activeRail: string;
-  feedLength: number;
-  criticalCount: number;
-  nominalCount: number;
-  onRailChange: (rail: string) => void;
-}
+export default function NavigationRail() {
+  const alerts = useAlertStore((state) => state.alerts);
+  const activeFilters = useAlertStore(selectActiveFilters);
+  const setActiveRail = useAlertStore((state) => state.setActiveRail);
 
-export default function NavigationRail({
-  activeRail,
-  feedLength,
-  criticalCount,
-  nominalCount,
-  onRailChange,
-}: NavigationRailProps) {
+  const feed = useMemo(() => alerts.map(mapAlertToFeedItem), [alerts]);
+  const criticalCount = feed.filter((f) => f.status === "CRITICAL").length;
+  const nominalCount = feed.filter((f) => f.status === "NOMINAL").length;
+
   return (
     <nav className="xl:col-span-2 border-r border-[#9e5b00]/30 bg-[#080604] p-4 flex flex-row xl:flex-col justify-between xl:justify-start gap-2">
       <div className="w-full space-y-2">
@@ -24,11 +20,11 @@ export default function NavigationRail({
         </span>
 
         <button
-          onClick={() => onRailChange('ALL_STATIONS')}
+          onClick={() => setActiveRail("ALL_STATIONS")}
           className={`w-full text-left p-3 flex items-center justify-between transition-all duration-150 relative ${
-            activeRail === 'ALL_STATIONS'
-              ? 'bg-[#ff9100]/10 border-l-4 border-[#ff9100] text-white'
-              : 'hover:bg-[#1c1610] text-[#9e5b00]'
+            activeFilters.activeRail === "ALL_STATIONS"
+              ? "bg-[#ff9100]/10 border-l-4 border-[#ff9100] text-white"
+              : "hover:bg-[#1c1610] text-[#9e5b00]"
           }`}
         >
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider">
@@ -36,16 +32,16 @@ export default function NavigationRail({
             <span>All Streams</span>
           </div>
           <span className="text-[10px] font-mono bg-[#1c1610] px-1 border border-[#9e5b00]/20">
-            {feedLength}
+            {feed.length}
           </span>
         </button>
 
         <button
-          onClick={() => onRailChange('CRITICAL_ONLY')}
+          onClick={() => setActiveRail("CRITICAL_ONLY")}
           className={`w-full text-left p-3 flex items-center justify-between transition-all duration-150 relative ${
-            activeRail === 'CRITICAL_ONLY'
-              ? 'bg-[#ff3333]/10 border-l-4 border-[#ff3333] text-[#ff3333]'
-              : 'hover:bg-[#1c1610] text-[#9e5b00]'
+            activeFilters.activeRail === "CRITICAL_ONLY"
+              ? "bg-[#ff3333]/10 border-l-4 border-[#ff3333] text-[#ff3333]"
+              : "hover:bg-[#1c1610] text-[#9e5b00]"
           }`}
         >
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider">
@@ -58,11 +54,11 @@ export default function NavigationRail({
         </button>
 
         <button
-          onClick={() => onRailChange('NOMINAL_ONLY')}
+          onClick={() => setActiveRail("NOMINAL_ONLY")}
           className={`w-full text-left p-3 flex items-center justify-between transition-all duration-150 relative ${
-            activeRail === 'NOMINAL_ONLY'
-              ? 'bg-[#00ff66]/10 border-l-4 border-[#00ff66] text-[#00ff66]'
-              : 'hover:bg-[#1c1610] text-[#9e5b00]'
+            activeFilters.activeRail === "NOMINAL_ONLY"
+              ? "bg-[#00ff66]/10 border-l-4 border-[#00ff66] text-[#00ff66]"
+              : "hover:bg-[#1c1610] text-[#9e5b00]"
           }`}
         >
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider">
@@ -81,7 +77,7 @@ export default function NavigationRail({
             <span>STATION GPS</span>
             <span className="animate-pulse">● LIVE</span>
           </div>
-          <p>45°12'N 122°33'W</p>
+          <p>45°12&apos;N 122°33&apos;W</p>
           <p className="mt-1 text-[9px]">DEEP-OCEAN TRENCH GRID 7</p>
         </div>
       </div>

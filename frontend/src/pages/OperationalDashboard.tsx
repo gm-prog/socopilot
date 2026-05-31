@@ -1,24 +1,25 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAlertsStream } from "../hooks/useAlertsStream";
-import { useAlertStore } from "../store/useAlertStore";
+import {
+  useAlertStore,
+  selectActiveFilters,
+  type FeedItem,
+} from "../store/alertStore";
+import { mapAlertToFeedItem } from "../store/feedUtils";
 import {
   Terminal,
   ShieldAlert,
   Activity,
   Search,
-  Layers,
-  Radio,
-  Cpu,
   Sliders,
+  Radio,
   Crosshair,
-  CornerDownRight,
   AlertTriangle,
   X,
   Database,
   Wifi,
   Clock,
 } from "lucide-react";
-import type { AlertSummary } from "../types/alert";
 
 const PhosphorDesignSystem = () => (
   <style>{`
@@ -67,60 +68,42 @@ const PhosphorDesignSystem = () => (
   `}</style>
 );
 
-// --- Feed types derived from AlertSummary ---
+function filterFeed(
+  feed: FeedItem[],
+  searchQuery: string,
+  activeRail: string
+): FeedItem[] {
+  const term = searchQuery.toLowerCase();
+  return feed.filter((item) => {
+    const matchesSearch =
+      item.message.toLowerCase().includes(term) ||
+      item.origin.toLowerCase().includes(term) ||
+      item.id.toLowerCase().includes(term);
 
-type FeedStatus = "NOMINAL" | "WARNING" | "CRITICAL";
-
-interface FeedItem {
-  id: string;
-  type: string;
-  origin: string;
-  message: string;
-  delta: string;
-  status: FeedStatus;
-  timestamp: string;
-}
-
-function mapAlertToFeedItem(alert: AlertSummary): FeedItem {
-  const status: FeedStatus =
-    alert.severity === "critical"
-      ? "CRITICAL"
-      : alert.severity === "high" || alert.severity === "medium"
-      ? "WARNING"
-      : "NOMINAL";
-
-  return {
-    id: alert.id,
-    type: alert.category ?? "ALERT",
-    origin: alert.source ?? alert.detector ?? "UNKNOWN",
-    message: alert.title ?? alert.description ?? "Suspicious telemetry event",
-    delta: alert.duplicate_count ? `${alert.duplicate_count} dup` : "0",
-    status,
-    timestamp: alert.detected_at
-      ? new Date(alert.detected_at).toTimeString().split(" ")[0]
-      : new Date().toTimeString().split(" ")[0],
-  };
+    if (activeRail === "ALL_STATIONS") return matchesSearch;
+    if (activeRail === "CRITICAL_ONLY")
+      return matchesSearch && item.status === "CRITICAL";
+    if (activeRail === "NOMINAL_ONLY")
+      return matchesSearch && item.status === "NOMINAL";
+    return matchesSearch;
+  });
 }
 
 export default function OperationalDashboard() {
-  // Centralized alert list from Zustand store
   const alerts = useAlertStore((state) => state.alerts);
+  const activeFilters = useAlertStore(selectActiveFilters);
+  const selectedEntity = useAlertStore((state) => state.selectedEntity);
+  const setSelectedEntity = useAlertStore((state) => state.setSelectedEntity);
+  const setSearchQuery = useAlertStore((state) => state.setSearchQuery);
+  const setActiveRail = useAlertStore((state) => state.setActiveRail);
 
-  // Local UI / workflow state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedEntity, setSelectedEntity] = useState<FeedItem | null>(null);
-  const [activeRail, setActiveRail] = useState<
-    "ALL_STATIONS" | "CRITICAL_ONLY" | "NOMINAL_ONLY"
-  >("ALL_STATIONS");
   const [systemPulse, setSystemPulse] = useState(true);
 
-  // Stream + historical alerts into store
   const { isConnected, isLoading, error } = useAlertsStream({
     enabled: true,
     maxQueueSize: 100,
   });
 
-  // Pulse animation only
   useEffect(() => {
     const interval = setInterval(() => {
       setSystemPulse((prev) => !prev);
@@ -128,33 +111,25 @@ export default function OperationalDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Feed derived from store alerts
-  const feed: FeedItem[] = useMemo(
-    () => alerts.map(mapAlertToFeedItem),
-    [alerts]
+  const feed = useMemo(() => alerts.map(mapAlertToFeedItem), [alerts]);
+
+  const filteredFeed = useMemo(
+    () =>
+      filterFeed(
+        feed,
+        activeFilters.searchQuery,
+        activeFilters.activeRail
+      ),
+    [feed, activeFilters.searchQuery, activeFilters.activeRail]
   );
-
-  const filteredFeed = useMemo(() => {
-    return feed.filter((item) => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch =
-        item.message.toLowerCase().includes(term) ||
-        item.origin.toLowerCase().includes(term) ||
-        item.id.toLowerCase().includes(term);
-
-      if (activeRail === "ALL_STATIONS") return matchesSearch;
-      if (activeRail === "CRITICAL_ONLY")
-        return matchesSearch && item.status === "CRITICAL";
-      if (activeRail === "NOMINAL_ONLY")
-        return matchesSearch && item.status === "NOMINAL";
-      return matchesSearch;
-    });
-  }, [feed, searchTerm, activeRail]);
 
   const criticalAlertCount = useMemo(
     () => alerts.filter((a) => a.severity === "critical").length,
     [alerts]
   );
+
+  const criticalFeedCount = feed.filter((f) => f.status === "CRITICAL").length;
+  const nominalFeedCount = feed.filter((f) => f.status === "NOMINAL").length;
 
   return (
     <div className="crt-screen min-h-screen text-[#ff9100] font-data antialiased selection:bg-[#ff9100] selection:text-black">
@@ -215,8 +190,14 @@ export default function OperationalDashboard() {
         </div>
       </header>
 
+      {error && (
+        <div className="bg-[#ff3333]/20 border-b border-[#ff3333]/60 px-6 py-3 flex items-center gap-2 text-[#ff3333] text-sm z-10 relative">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span className="font-mono text-xs">{error}</span>
+        </div>
+      )}
+
       <main className="grid grid-cols-1 xl:grid-cols-12 min-h-[calc(100vh-73px)] relative z-10">
-        {/* Left nav */}
         <nav className="xl:col-span-2 border-r border-[#9e5b00]/30 bg-[#080604] p-4 flex flex-row xl:flex-col justify-between xl:justify-start gap-2">
           <div className="w-full space-y-2">
             <span className="hidden xl:block text-[10px] uppercase tracking-wider text-[#9e5b00] px-2 mb-2 font-display">
@@ -225,7 +206,7 @@ export default function OperationalDashboard() {
             <button
               onClick={() => setActiveRail("ALL_STATIONS")}
               className={`w-full text-left p-3 flex items-center justify-between transition-all duration-150 relative ${
-                activeRail === "ALL_STATIONS"
+                activeFilters.activeRail === "ALL_STATIONS"
                   ? "bg-[#ff9100]/10 border-l-4 border-[#ff9100] text-white"
                   : "hover:bg-[#1c1610] text-[#9e5b00]"
               }`}
@@ -242,7 +223,7 @@ export default function OperationalDashboard() {
             <button
               onClick={() => setActiveRail("CRITICAL_ONLY")}
               className={`w-full text-left p-3 flex items-center justify-between transition-all duration-150 relative ${
-                activeRail === "CRITICAL_ONLY"
+                activeFilters.activeRail === "CRITICAL_ONLY"
                   ? "bg-[#ff3333]/10 border-l-4 border-[#ff3333] text-[#ff3333]"
                   : "hover:bg-[#1c1610] text-[#9e5b00]"
               }`}
@@ -252,14 +233,14 @@ export default function OperationalDashboard() {
                 <span>Critical Rails</span>
               </div>
               <span className="text-[10px] font-mono bg-[#ff3333]/20 px-1 border border-[#ff3333]/40 text-[#ff3333]">
-                {feed.filter((f) => f.status === "CRITICAL").length}
+                {criticalFeedCount}
               </span>
             </button>
 
             <button
               onClick={() => setActiveRail("NOMINAL_ONLY")}
               className={`w-full text-left p-3 flex items-center justify-between transition-all duration-150 relative ${
-                activeRail === "NOMINAL_ONLY"
+                activeFilters.activeRail === "NOMINAL_ONLY"
                   ? "bg-[#00ff66]/10 border-l-4 border-[#00ff66] text-[#00ff66]"
                   : "hover:bg-[#1c1610] text-[#9e5b00]"
               }`}
@@ -269,7 +250,7 @@ export default function OperationalDashboard() {
                 <span>Nominal Nodes</span>
               </div>
               <span className="text-[10px] font-mono bg-[#00ff66]/20 px-1 border border-[#00ff66]/40 text-[#00ff66]">
-                {feed.filter((f) => f.status === "NOMINAL").length}
+                {nominalFeedCount}
               </span>
             </button>
           </div>
@@ -286,7 +267,6 @@ export default function OperationalDashboard() {
           </div>
         </nav>
 
-        {/* Center: feed list */}
         <section className="xl:col-span-7 bg-[#120e0a] flex flex-col border-r border-[#9e5b00]/30">
           <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#9e5b00]/30 bg-[#080604]">
             <div className="p-4 border-r border-[#9e5b00]/20">
@@ -352,13 +332,13 @@ export default function OperationalDashboard() {
             <input
               type="text"
               placeholder="COMMAND INPUT: FILTER MATRIX TRANSIENTS BY ID, SIGNATURE, OR ORIGIN..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={activeFilters.searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-transparent text-sm text-[#ff9100] placeholder-[#9e5b00]/50 border-none outline-none focus:ring-0 font-mono tracking-wider"
             />
-            {searchTerm && (
+            {activeFilters.searchQuery && (
               <button
-                onClick={() => setSearchTerm("")}
+                onClick={() => setSearchQuery("")}
                 className="text-[#9e5b00] hover:text-[#ff9100]"
               >
                 <X className="w-4 h-4" />
@@ -369,7 +349,7 @@ export default function OperationalDashboard() {
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             <div className="flex items-center justify-between text-[11px] text-[#9e5b00] uppercase tracking-wider pb-2 border-b border-[#9e5b00]/10">
               <span>Live Telemetry Broadcast Pipeline</span>
-              <span>Filter: {activeRail}</span>
+              <span>Filter: {activeFilters.activeRail}</span>
             </div>
 
             {isLoading && feed.length === 0 ? (
@@ -403,8 +383,8 @@ export default function OperationalDashboard() {
                         item.status === "CRITICAL"
                           ? "bg-[#ff3333]"
                           : item.status === "WARNING"
-                          ? "bg-[#ffcc00]"
-                          : "bg-[#00ff66]"
+                            ? "bg-[#ffcc00]"
+                            : "bg-[#00ff66]"
                       }`}
                     />
                     <div>
@@ -431,8 +411,8 @@ export default function OperationalDashboard() {
                         item.status === "CRITICAL"
                           ? "text-[#ff3333]"
                           : item.status === "WARNING"
-                          ? "text-[#ffcc00]"
-                          : "text-[#00ff66]"
+                            ? "text-[#ffcc00]"
+                            : "text-[#00ff66]"
                       }`}
                     >
                       {item.delta}
@@ -448,7 +428,6 @@ export default function OperationalDashboard() {
           </div>
         </section>
 
-        {/* Right: threat grid + detail */}
         <section className="xl:col-span-3 bg-[#080604] p-4 flex flex-col gap-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -488,21 +467,17 @@ export default function OperationalDashboard() {
                   <div className="mt-2 grid grid-cols-2 text-[11px] font-mono border-t border-[#9e5b00]/10 pt-1.5">
                     <div>
                       <span className="text-[#9e5b00]">SECTOR:</span>{" "}
-                      <span className="text-white">
-                        {alert.sector ?? alert.source ?? "N/A"}
-                      </span>
+                      <span className="text-white">{alert.source ?? "N/A"}</span>
                     </div>
                     <div className="text-right">
                       <span className="text-[#9e5b00]">VAL:</span>{" "}
                       <span className="text-white">
-                        {alert.score ?? alert.confidence ?? "—"}
+                        {alert.duplicate_count ?? "—"}
                       </span>
                     </div>
                   </div>
                   <p className="text-[11px] text-[#ff9100]/70 mt-1.5 line-clamp-2 leading-relaxed">
-                    {alert.title ??
-                      alert.description ??
-                      "Alert event detected."}
+                    {alert.title ?? "Alert event detected."}
                   </p>
                 </div>
               ))}
@@ -542,9 +517,7 @@ export default function OperationalDashboard() {
                     <span className="text-[10px] text-[#9e5b00] uppercase block">
                       TELEMETRY TYPE INDICATOR
                     </span>
-                    <span className="text-[#ff9100]">
-                      {selectedEntity.type}
-                    </span>
+                    <span className="text-[#ff9100]">{selectedEntity.type}</span>
                   </div>
                   <div className="p-2 bg-[#080604] border border-[#9e5b00]/10">
                     <span className="text-[10px] text-[#9e5b00] uppercase block">
@@ -578,7 +551,7 @@ export default function OperationalDashboard() {
                 <div className="pt-2">
                   <button
                     onClick={() =>
-                      alert(
+                      window.alert(
                         `Injecting counter-measure sequence to ${selectedEntity.origin}`
                       )
                     }

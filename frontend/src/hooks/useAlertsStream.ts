@@ -5,7 +5,7 @@ import { fetchAlerts } from "../api/alerts";
 import { websocketUrl } from "../config/api";
 import { WebSocketManager } from "../lib/websocketManager";
 
-import { useAlertStore } from "../store/useAlertStore";
+import { useAlertStore } from "../store/alertStore";
 
 import type { AlertSummary } from "../types/alert";
 

@@ -1,42 +1,41 @@
-import React from 'react';
-import { AlertTriangle, X, Database } from 'lucide-react';
+import React, { useMemo } from "react";
+import { AlertTriangle, X, Database } from "lucide-react";
+import { useAlertStore } from "../../store/alertStore";
 
-interface Alert {
-  id: string;
-  sector: string;
-  metric: string;
-  status: 'CRITICAL' | 'WARNING' | 'NOMINAL';
-  value: string;
-  time: string;
-  desc: string;
-}
+export default function DataDeck() {
+  const alerts = useAlertStore((state) => state.alerts);
+  const selectedEntity = useAlertStore((state) => state.selectedEntity);
+  const clearSelectedEntity = useAlertStore(
+    (state) => state.clearSelectedEntity
+  );
 
-interface FeedItem {
-  id: string;
-  type: string;
-  origin: string;
-  message: string;
-  delta: string;
-  status: 'CRITICAL' | 'WARNING' | 'NOMINAL';
-  timestamp: string;
-}
+  const threatGridAlerts = useMemo(() => {
+    return alerts.slice(0, 5).map((alert) => ({
+      id: alert.id,
+      sector: `SEC-${
+        alert.source?.substring(0, 2).toUpperCase() || "XX"
+      }`,
+      metric: alert.source || "Unknown Source",
+      status:
+        alert.severity === "critical"
+          ? ("CRITICAL" as const)
+          : alert.severity === "high"
+            ? ("WARNING" as const)
+            : ("NOMINAL" as const),
+      value: alert.duplicate_count
+        ? `${alert.duplicate_count} duplicates`
+        : "Unique",
+      time: new Date(alert.detected_at).toLocaleTimeString(),
+      desc: alert.title,
+    }));
+  }, [alerts]);
 
-interface DataDeckProps {
-  alerts: Alert[];
-  selectedEntity: FeedItem | null;
-  onEntityClose: () => void;
-}
-
-export default function DataDeck({
-  alerts,
-  selectedEntity,
-  onEntityClose,
-}: DataDeckProps) {
-  const criticalAlerts = alerts.filter((a) => a.status === 'CRITICAL');
+  const criticalAlerts = threatGridAlerts.filter(
+    (a) => a.status === "CRITICAL"
+  );
 
   return (
     <section className="xl:col-span-3 bg-[#080604] p-4 flex flex-col gap-4">
-      {/* THREAT CRITICALITY ACTIVE LIST */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-display uppercase text-white tracking-widest flex items-center gap-1.5">
@@ -49,13 +48,13 @@ export default function DataDeck({
         </div>
 
         <div className="space-y-2">
-          {alerts.map((alert) => (
+          {threatGridAlerts.map((alert) => (
             <div
               key={alert.id}
               className={`p-3 border ${
-                alert.status === 'CRITICAL'
-                  ? 'border-[#ff3333]/40 bg-[#ff3333]/5'
-                  : 'border-[#ffcc00]/40 bg-[#ffcc00]/5'
+                alert.status === "CRITICAL"
+                  ? "border-[#ff3333]/40 bg-[#ff3333]/5"
+                  : "border-[#ffcc00]/40 bg-[#ffcc00]/5"
               } relative overflow-hidden`}
             >
               <div className="flex justify-between items-start">
@@ -64,9 +63,9 @@ export default function DataDeck({
                 </span>
                 <span
                   className={`text-[9px] px-1 font-mono uppercase ${
-                    alert.status === 'CRITICAL'
-                      ? 'bg-[#ff3333] text-black'
-                      : 'bg-[#ffcc00] text-black'
+                    alert.status === "CRITICAL"
+                      ? "bg-[#ff3333] text-black"
+                      : "bg-[#ffcc00] text-black"
                   }`}
                 >
                   {alert.status}
@@ -75,11 +74,11 @@ export default function DataDeck({
 
               <div className="mt-2 grid grid-cols-2 text-[11px] font-mono border-t border-[#9e5b00]/10 pt-1.5">
                 <div>
-                  <span className="text-[#9e5b00]">SECTOR:</span>{' '}
+                  <span className="text-[#9e5b00]">SECTOR:</span>{" "}
                   <span className="text-white">{alert.sector}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[#9e5b00]">VAL:</span>{' '}
+                  <span className="text-[#9e5b00]">VAL:</span>{" "}
                   <span className="text-white">{alert.value}</span>
                 </div>
               </div>
@@ -92,7 +91,6 @@ export default function DataDeck({
         </div>
       </div>
 
-      {/* CONTEXTUAL STREAM INTERCEPT DETAIL PANEL */}
       <div className="flex-1 border border-[#9e5b00]/20 bg-[#120e0a] p-4 flex flex-col justify-between relative">
         {selectedEntity ? (
           <div className="space-y-4">
@@ -106,7 +104,7 @@ export default function DataDeck({
                 </h4>
               </div>
               <button
-                onClick={onEntityClose}
+                onClick={clearSelectedEntity}
                 className="p-1 hover:bg-[#1c1610] border border-transparent hover:border-[#9e5b00]/30 text-[#9e5b00] hover:text-[#ff9100]"
               >
                 <X className="w-4 h-4" />
@@ -136,9 +134,9 @@ export default function DataDeck({
                 </span>
                 <span
                   className={
-                    selectedEntity.status === 'CRITICAL'
-                      ? 'text-[#ff3333]'
-                      : 'text-[#00ff66]'
+                    selectedEntity.status === "CRITICAL"
+                      ? "text-[#ff3333]"
+                      : "text-[#00ff66]"
                   }
                 >
                   {selectedEntity.delta}
@@ -158,7 +156,7 @@ export default function DataDeck({
             <div className="pt-2">
               <button
                 onClick={() =>
-                  alert(
+                  window.alert(
                     `Injecting counter-measure sequence to ${selectedEntity.origin}`
                   )
                 }

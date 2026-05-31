@@ -1,0 +1,11 @@
+# Development overrides — use: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
+services:
+  api:
+    volumes:
+      - ../backend:/app:ro
+    environment:
+      DEBUG: "true"
+
+  frontend:
+  # For local frontend dev, run: cd frontend && npm run dev
+  # and comment out the frontend service here if desired.

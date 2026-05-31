@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: SOCoPilot
+    orgId: 1
+    folder: SOCoPilot
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

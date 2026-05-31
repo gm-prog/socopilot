@@ -11,6 +11,9 @@ interface AlertUIState {
   stateFilter: string;
   searchQuery: string;
 
+// Navigation
+activeRail: string;
+
   // Sorting
   sortKey: 'severity' | 'id' | 'entity' | 'detected';
   sortDir: 1 | -1;
@@ -24,7 +27,7 @@ interface AlertUIState {
   setSevFilter: (filter: 'ALL' | Severity) => void;
   setStateFilter: (filter: string) => void;
   setSearchQuery: (query: string) => void;
-
+setActiveRail: (rail: string) => void;
   setSortKey: (key: 'severity' | 'id' | 'entity' | 'detected') => void;
   setSortDir: (dir: 1 | -1) => void;
 
@@ -38,7 +41,8 @@ export const useAlertUIStore = create<AlertUIState>((set) => ({
   sevFilter: 'ALL',
   stateFilter: '',
   searchQuery: '',
-  sortKey: 'detected',
+activeRail: 'ALL_STATIONS',
+sortKey: 'detected',
   sortDir: -1,
 
   setSelectedAlertId: (id) => set({ selectedAlertId: id }),
@@ -64,16 +68,20 @@ export const useAlertUIStore = create<AlertUIState>((set) => ({
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
+setActiveRail: (rail) => set({ activeRail: rail }),
+
+
   setSortKey: (key) => set({ sortKey: key }),
 
   setSortDir: (dir) => set({ sortDir: dir }),
 
   resetFilters: () =>
-    set({
-      sevFilter: 'ALL',
-      stateFilter: '',
-      searchQuery: '',
-      sortKey: 'detected',
-      sortDir: -1,
-    }),
+  set({
+    sevFilter: 'ALL',
+    stateFilter: '',
+    searchQuery: '',
+    activeRail: 'ALL_STATIONS',
+    sortKey: 'detected',
+    sortDir: -1,
+  }),
 }));

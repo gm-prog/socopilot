@@ -8,6 +8,7 @@ import DataDeck from '../components/dashboard/DataDeck';
 
 import { useAlertsStream } from '../hooks/useAlertsStream';
 import { useAlertStore } from '../store/useAlertStore';
+import { useAlertUIStore } from '../store/useAlertUIStore';
 
 import type { AlertSummary } from '../types/alert';
 
@@ -80,12 +81,13 @@ export default function OperationalDashboard() {
     (state) => state.alerts
   );
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchTerm = useAlertUIStore((s) => s.searchQuery);
+  const setSearchTerm = useAlertUIStore((s) => s.setSearchQuery);
   const [selectedEntity, setSelectedEntity] =
     useState<FeedItem | null>(null);
 
-  const [activeRail, setActiveRail] =
-    useState('ALL_STATIONS');
+  const activeRail = useAlertUIStore((s) => s.activeRail);
+const setActiveRail = useAlertUIStore((s) => s.setActiveRail);
 
   /**
    * Feed transformation layer
@@ -210,3 +212,5 @@ export default function OperationalDashboard() {
     </div>
   );
 }
+
+

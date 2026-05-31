@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import '../styles/alerts-futuristic.css';
-import { useAlertUIStore } from '../store/useAlertUIStore';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 type AlertState = 'NEW' | 'ACKNOWLEDGED' | 'IN_PROGRESS' | 'ESCALATED' | 'CLOSED' | 'FALSE_POSITIVE';
@@ -415,50 +414,13 @@ function formatStateLabel(state: AlertState) {
 }
 
 export default function AlertsPage() {
-  const sevFilter = useAlertUIStore((s) => s.sevFilter);
-const setSevFilter = useAlertUIStore((s) => s.setSevFilter);
-
-const selectedId = useAlertUIStore(
-  (s) => s.selectedAlertId
-);
-const setSelectedId = useAlertUIStore(
-  (s) => s.setSelectedAlertId
-);
-
-const selectedRows = useAlertUIStore(
-  (s) => s.selectedRows
-);
-const setSelectedRows = useAlertUIStore(
-  (s) => s.setSelectedRows
-);
-
-const searchQuery = useAlertUIStore(
-  (s) => s.searchQuery
-);
-const setSearchQuery = useAlertUIStore(
-  (s) => s.setSearchQuery
-);
-
-const stateFilter = useAlertUIStore(
-  (s) => s.stateFilter
-);
-const setStateFilter = useAlertUIStore(
-  (s) => s.setStateFilter
-);
-
-const sortKey = useAlertUIStore(
-  (s) => s.sortKey
-);
-const setSortKey = useAlertUIStore(
-  (s) => s.setSortKey
-);
-
-const sortDir = useAlertUIStore(
-  (s) => s.sortDir
-);
-const setSortDir = useAlertUIStore(
-  (s) => s.setSortDir
-);
+  const [sevFilter, setSevFilter] = useState<'ALL' | Severity>('ALL');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [sortKey, setSortKey] = useState<SortKey>('detected');
+  const [sortDir, setSortDir] = useState<1 | -1>(-1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
   const [rate, setRate] = useState<number>(Math.floor(Math.random() * 200 + 400));
 
   useEffect(() => {
@@ -776,5 +738,3 @@ const setSortDir = useAlertUIStore(
     </div>
   );
 }
-
-

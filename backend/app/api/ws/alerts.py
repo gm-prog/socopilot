@@ -41,6 +41,7 @@ async def alerts_socket(websocket: WebSocket) -> None:
             try:
                 message = json.loads(raw)
             except json.JSONDecodeError:
+                logger.debug("alerts_socket_invalid_json", tenant_id=tenant_id)
                 continue
 
             if isinstance(message, dict) and message.get("type") == "PING":

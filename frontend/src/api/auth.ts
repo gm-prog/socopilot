@@ -140,7 +140,8 @@ export async function refreshAccessToken(): Promise<string | null> {
 
       persistAccessToken(accessToken, "token_update");
       return accessToken;
-    } catch {
+    } catch (err) {
+      console.warn("[refreshAccessToken] Token refresh failed:", err instanceof Error ? err.message : err);
       return null;
     } finally {
       refreshPromise = null;
@@ -179,10 +180,13 @@ export async function loginRequest(email: string, password: string): Promise<str
 }
 
 export async function logoutRequest(): Promise<void> {
-  await fetch(apiUrl("/api/v1/auth/logout"), {
+  const response = await fetch(apiUrl("/api/v1/auth/logout"), {
     method: "POST",
     credentials: "include",
   });
+  if (!response.ok) {
+    console.warn(`[logoutRequest] Server returned ${response.status}`);
+  }
 }
 
 export async function fetchProfile(accessToken: string): Promise<UserProfile | null> {
@@ -193,9 +197,13 @@ export async function fetchProfile(accessToken: string): Promise<UserProfile | n
         Authorization: `Bearer ${accessToken}`,
       },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`[fetchProfile] Server returned ${response.status}`);
+      return null;
+    }
     return (await response.json()) as UserProfile;
-  } catch {
+  } catch (err) {
+    console.warn("[fetchProfile] Failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }

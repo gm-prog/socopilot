@@ -212,20 +212,30 @@ export const useAlertStore = create<AlertStoreState>((set, get) => ({
     const { selectedAlertId } = get();
     if (!selectedAlertId) return;
 
-    const updated = await updateAlertWorkflow(selectedAlertId, {
-      lifecycle_state: lifecycleState,
-    });
-    set({ alertDetail: updated });
+    try {
+      const updated = await updateAlertWorkflow(selectedAlertId, {
+        lifecycle_state: lifecycleState,
+      });
+      set({ alertDetail: updated, detailError: null });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update lifecycle state";
+      set({ detailError: message });
+    }
   },
 
   saveDrawerNotes: async () => {
     const { selectedAlertId, drawerNotes } = get();
     if (!selectedAlertId) return;
 
-    const updated = await updateAlertWorkflow(selectedAlertId, {
-      analyst_notes: drawerNotes,
-    });
-    set({ alertDetail: updated });
+    try {
+      const updated = await updateAlertWorkflow(selectedAlertId, {
+        analyst_notes: drawerNotes,
+      });
+      set({ alertDetail: updated, detailError: null });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save notes";
+      set({ detailError: message });
+    }
   },
 
   closeDetailDrawer: () => {

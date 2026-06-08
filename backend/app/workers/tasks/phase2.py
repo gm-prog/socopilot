@@ -130,6 +130,7 @@ def index_alert_opensearch(header: dict[str, Any]) -> dict[str, Any]:
         with get_sync_db() as session:
             alert = session.get(NormalizedAlert, UUID(alert_id))
             if alert is None:
+                logger.warning("indexing_skipped_alert_not_found", alert_id=alert_id)
                 return header
             doc = {
                 "tenant_id": str(alert.tenant_id),
@@ -162,6 +163,7 @@ def generate_alert_embedding(header: dict[str, Any]) -> dict[str, Any]:
         with get_sync_db() as session:
             alert = session.get(NormalizedAlert, alert_id)
             if alert is None:
+                logger.warning("embedding_skipped_alert_not_found", alert_id=str(alert_id))
                 return header
             text = f"{alert.title}\n{alert.description or ''}"
             vector = _embed_text(text, settings.ollama_embed_model)
@@ -191,7 +193,16 @@ def _embed_text(text: str, model: str) -> list[float] | None:
                 json={"model": model, "prompt": text[:8000]},
             )
             resp.raise_for_status()
-            return resp.json().get("embedding")
+            embedding = resp.json().get("embedding")
+            if embedding is None:
+                logger.warning("ollama_embed_empty_response", model=model)
+            return embedding
+    except httpx.TimeoutException:
+        logger.warning("ollama_embed_timeout", model=model)
+        return None
+    except httpx.HTTPStatusError as exc:
+        logger.warning("ollama_embed_http_error", model=model, status_code=exc.response.status_code)
+        return None
     except Exception as exc:
-        logger.warning("ollama_embed_failed", error=str(exc))
+        logger.warning("ollama_embed_failed", model=model, error=str(exc))
         return None

@@ -3,6 +3,7 @@ import { fetchWithAuth } from "./auth";
 import { ensureOk } from "./client";
 import type { AlertDetail, AlertListResponse, EnrichmentResult } from "../types/alert";
 
+
 export async function fetchAlerts(params?: {
   page?: number;
   page_size?: number;
@@ -29,9 +30,13 @@ export async function fetchAlert(id: string): Promise<AlertDetail> {
 export async function fetchAlertEnrichment(alertId: string): Promise<EnrichmentResult[]> {
   const res = await fetchWithAuth(apiUrl(`/api/v1/enrichment/alerts/${alertId}`));
   if (res.status === 401) {
+    console.warn(`[fetchAlertEnrichment] Unauthorized for alert ${alertId}`);
     return [];
   }
-  if (!res.ok) return [];
+  if (!res.ok) {
+    console.warn(`[fetchAlertEnrichment] Failed for alert ${alertId}: ${res.status}`);
+    return [];
+  }
   return res.json();
 }
 

@@ -2,7 +2,14 @@ import { apiUrl } from "../config/api";
 
 export async function ensureOk(res: Response, fallbackMessage: string): Promise<void> {
   if (res.ok) return;
-  throw new Error(`${fallbackMessage}: ${res.status}`);
+  let detail = "";
+  try {
+    const body = await res.json();
+    detail = body.detail || "";
+  } catch {
+    // response body not JSON
+  }
+  throw new Error(detail ? `${fallbackMessage}: ${detail}` : `${fallbackMessage}: ${res.status}`);
 }
 
 export async function fetchHealth(): Promise<{ status: string; service: string; version: string }> {

@@ -120,7 +120,8 @@ class AlertsWebSocketManager:
                     websocket.send_json(message),
                     timeout=SEND_TIMEOUT_SECONDS,
                 )
-            except Exception:
+            except Exception as exc:
+                logger.debug("ws_send_failed", tenant_id=tenant_id, error=str(exc))
                 stale.append(websocket)
 
         for websocket in stale:

@@ -1,11 +1,7 @@
 import { apiUrl } from "../config/api";
 import { fetchWithAuth } from "./auth";
+import { ensureOk } from "./client";
 import type { AlertDetail, AlertListResponse, EnrichmentResult } from "../types/alert";
-
-async function ensureOk(res: Response, fallbackMessage: string): Promise<void> {
-  if (res.ok) return;
-  throw new Error(`${fallbackMessage}: ${res.status}`);
-}
 
 export async function fetchAlerts(params?: {
   page?: number;

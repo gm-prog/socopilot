@@ -46,7 +46,15 @@ class IngestService:
     bind_context(raw_event_id=str(raw_event.id))
     logger.info("raw_event_stored", status="received")
 
-    task = dispatch_ingest_pipeline(str(raw_event.id), correlation_id)
+    try:
+      task = dispatch_ingest_pipeline(str(raw_event.id), correlation_id)
+    except Exception as exc:
+      raw_event.status = "failed"
+      raw_event.error_message = f"Pipeline dispatch failed: {exc}"
+      await self.db.flush()
+      logger.error("ingest_pipeline_dispatch_failed", error=str(exc), raw_event_id=str(raw_event.id))
+      raise
+
     raw_event.celery_task_id = task.id
     raw_event.status = "queued"
     await self.db.flush()

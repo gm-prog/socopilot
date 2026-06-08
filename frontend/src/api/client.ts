@@ -1,8 +1,13 @@
 import { apiUrl } from "../config/api";
 
+export async function ensureOk(res: Response, fallbackMessage: string): Promise<void> {
+  if (res.ok) return;
+  throw new Error(`${fallbackMessage}: ${res.status}`);
+}
+
 export async function fetchHealth(): Promise<{ status: string; service: string; version: string }> {
   const res = await fetch(apiUrl("/api/v1/health"));
-  if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
+  await ensureOk(res, "Health check failed");
   return res.json();
 }
 
@@ -11,18 +16,18 @@ export async function fetchReadiness(): Promise<{
   checks: Array<{ name: string; status: string; detail?: string }>;
 }> {
   const res = await fetch(apiUrl("/api/v1/ready"));
-  if (!res.ok) throw new Error(`Readiness check failed: ${res.status}`);
+  await ensureOk(res, "Readiness check failed");
   return res.json();
 }
 
 export async function fetchSystemInfo(): Promise<Record<string, unknown>> {
   const res = await fetch(apiUrl("/api/v1/system/info"));
-  if (!res.ok) throw new Error(`System info failed: ${res.status}`);
+  await ensureOk(res, "System info failed");
   return res.json();
 }
 
 export async function fetchOllamaStatus(): Promise<Record<string, unknown>> {
   const res = await fetch(apiUrl("/api/v1/system/ollama/status"));
-  if (!res.ok) throw new Error(`Ollama status failed: ${res.status}`);
+  await ensureOk(res, "Ollama status failed");
   return res.json();
 }

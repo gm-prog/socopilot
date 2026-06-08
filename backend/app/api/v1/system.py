@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app import __version__
 from app.core.config import get_settings
+from app.core.dependencies import CurrentUserDep
 from app.integrations.ollama.client import OllamaClient
 from app.integrations.opensearch.client import get_search_backend
 
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/system", tags=["system"])
 
 
 @router.get("/info")
-async def system_info() -> dict:
+async def system_info(current_user: CurrentUserDep) -> dict:
     settings = get_settings()
     return {
         "app_name": settings.app_name,
@@ -29,18 +30,18 @@ async def system_info() -> dict:
 
 
 @router.get("/ollama/status")
-async def ollama_status() -> dict:
+async def ollama_status(current_user: CurrentUserDep) -> dict:
     client = OllamaClient()
     return await client.health_check()
 
 
 @router.get("/search/backend")
-async def search_backend_status() -> dict:
+async def search_backend_status(current_user: CurrentUserDep) -> dict:
     backend = get_search_backend()
     return await backend.status()
 
 
 @router.get("/build")
-async def build_info() -> dict:
+async def build_info(current_user: CurrentUserDep) -> dict:
     settings = get_settings()
     return {"version": __version__, "build_version": settings.build_version}

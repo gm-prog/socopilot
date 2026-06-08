@@ -1,17 +1,23 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from uuid import UUID
 
-from app.db.session import get_db
-from app.app.models import InvestigationEvent  # adjust if your models path differs
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
+
+from app.core.dependencies import CurrentUserDep, DbSession
+from app.db.models.investigation_event import InvestigationEvent
 
 router = APIRouter(prefix="/alerts", tags=["investigation"])
 
 
 @router.get("/{alert_id}/timeline")
-def get_timeline(alert_id: int, db: Session = Depends(get_db)):
-    return (
-        db.query(InvestigationEvent)
-        .filter(InvestigationEvent.alert_id == alert_id)
+async def get_timeline(
+    alert_id: UUID,
+    current_user: CurrentUserDep,
+    db: DbSession,
+):
+    result = await db.execute(
+        select(InvestigationEvent)
+        .where(InvestigationEvent.alert_id == alert_id)
         .order_by(InvestigationEvent.created_at.asc())
-        .all()
     )
+    return result.scalars().all()

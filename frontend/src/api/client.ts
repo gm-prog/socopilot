@@ -1,4 +1,10 @@
 import { apiUrl } from "../config/api";
+import { getStoredAccessToken } from "./auth";
+
+function authHeaders(): HeadersInit {
+  const token = getStoredAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export async function ensureOk(res: Response, fallbackMessage: string): Promise<void> {
   if (res.ok) return;
@@ -28,13 +34,13 @@ export async function fetchReadiness(): Promise<{
 }
 
 export async function fetchSystemInfo(): Promise<Record<string, unknown>> {
-  const res = await fetch(apiUrl("/api/v1/system/info"));
+  const res = await fetch(apiUrl("/api/v1/system/info"), { headers: authHeaders() });
   await ensureOk(res, "System info failed");
   return res.json();
 }
 
 export async function fetchOllamaStatus(): Promise<Record<string, unknown>> {
-  const res = await fetch(apiUrl("/api/v1/system/ollama/status"));
+  const res = await fetch(apiUrl("/api/v1/system/ollama/status"), { headers: authHeaders() });
   await ensureOk(res, "Ollama status failed");
   return res.json();
 }

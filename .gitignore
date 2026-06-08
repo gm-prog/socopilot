@@ -37,3 +37,7 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Runtime auth tokens
+.soc_token
+frontend/public/token.txt

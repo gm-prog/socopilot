@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,13 +75,30 @@ class Settings(BaseSettings):
     enrichment_timeout_seconds: int = Field(default=15, alias="ENRICHMENT_TIMEOUT_SECONDS")
     enrichment_max_retries: int = Field(default=3, alias="ENRICHMENT_MAX_RETRIES")
 
+    _INSECURE_SECRET_KEYS = frozenset({
+        "change-me-in-production-use-openssl-rand-hex-32",
+        "changeme",
+        "secret",
+    })
+
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
             raise ValueError("SECRET_KEY must not be empty")
+        if len(normalized) < 16:
+            raise ValueError("SECRET_KEY must be at least 16 characters")
         return normalized
+
+    @model_validator(mode="after")
+    def reject_insecure_secret_key_in_production(self) -> "Settings":
+        if self.app_env not in ("development", "test") and self.secret_key in self._INSECURE_SECRET_KEYS:
+            raise ValueError(
+                "SECRET_KEY is set to a well-known insecure value. "
+                "Generate a strong key: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        return self
 
     @computed_field
     @property

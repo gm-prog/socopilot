@@ -7,11 +7,18 @@ from sqlalchemy import text
 
 from app import __version__
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.db.session import AsyncSessionLocal
 from app.schemas.health import HealthResponse, ReadinessCheck, ReadinessResponse
 from app.workers.celery_app import celery_app
 
 router = APIRouter(tags=["health"])
+logger = get_logger(__name__)
+
+
+def _safe_error(exc: Exception) -> str:
+    """Return a generic error type without leaking hostnames, ports, or stack traces."""
+    return type(exc).__name__
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -30,7 +37,8 @@ async def readiness() -> ReadinessResponse:
             await session.execute(text("SELECT 1"))
         checks.append(ReadinessCheck(name="postgresql", status="ok"))
     except Exception as exc:
-        checks.append(ReadinessCheck(name="postgresql", status="fail", detail=str(exc)))
+        logger.warning("readiness_postgresql_failed", error=str(exc))
+        checks.append(ReadinessCheck(name="postgresql", status="fail", detail=_safe_error(exc)))
 
     # Redis
     try:
@@ -39,7 +47,8 @@ async def readiness() -> ReadinessResponse:
         await client.aclose()
         checks.append(ReadinessCheck(name="redis", status="ok"))
     except Exception as exc:
-        checks.append(ReadinessCheck(name="redis", status="fail", detail=str(exc)))
+        logger.warning("readiness_redis_failed", error=str(exc))
+        checks.append(ReadinessCheck(name="redis", status="fail", detail=_safe_error(exc)))
 
     # Celery broker reachability
     try:
@@ -48,7 +57,8 @@ async def readiness() -> ReadinessResponse:
         conn.release()
         checks.append(ReadinessCheck(name="celery_broker", status="ok"))
     except Exception as exc:
-        checks.append(ReadinessCheck(name="celery_broker", status="fail", detail=str(exc)))
+        logger.warning("readiness_celery_failed", error=str(exc))
+        checks.append(ReadinessCheck(name="celery_broker", status="fail", detail=_safe_error(exc)))
 
     # Ollama
     try:
@@ -65,7 +75,8 @@ async def readiness() -> ReadinessResponse:
                     )
                 )
     except Exception as exc:
-        checks.append(ReadinessCheck(name="ollama", status="fail", detail=str(exc)))
+        logger.warning("readiness_ollama_failed", error=str(exc))
+        checks.append(ReadinessCheck(name="ollama", status="fail", detail=_safe_error(exc)))
 
     if settings.opensearch_enabled or settings.elasticsearch_enabled:
         try:
@@ -83,7 +94,8 @@ async def readiness() -> ReadinessResponse:
                     )
                 )
         except Exception as exc:
-            checks.append(ReadinessCheck(name="opensearch", status="degraded", detail=str(exc)))
+            logger.warning("readiness_opensearch_failed", error=str(exc))
+            checks.append(ReadinessCheck(name="opensearch", status="degraded", detail=_safe_error(exc)))
 
     overall = "ok" if all(c.status == "ok" for c in checks) else "degraded"
     if any(c.status == "fail" for c in checks):

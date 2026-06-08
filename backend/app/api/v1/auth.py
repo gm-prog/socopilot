@@ -86,6 +86,8 @@ async def refresh_access_token(request: Request, db: DbSession) -> TokenResponse
         user_id: str = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Malformed refresh token")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 

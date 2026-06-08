@@ -42,8 +42,11 @@ class OpenSearchClient(SearchBackend):
                 ssl_show_warn=False,
             )
             return self._client
+        except ImportError:
+            logger.warning("opensearch_client_init_failed", error="opensearchpy package not installed")
+            return None
         except Exception as exc:
-            logger.warning("opensearch_client_init_failed", error=str(exc))
+            logger.warning("opensearch_client_init_failed", url=self.url, error=str(exc))
             return None
 
     def ensure_indices(self) -> bool:
@@ -104,6 +107,7 @@ class OpenSearchClient(SearchBackend):
             return None
         client = self._get_client()
         if client is None:
+            logger.warning("opensearch_index_alert_skipped", alert_id=alert_id, reason="client_unavailable")
             return None
         start = time.perf_counter()
         try:
@@ -123,13 +127,14 @@ class OpenSearchClient(SearchBackend):
             return None
         client = self._get_client()
         if client is None:
+            logger.warning("opensearch_index_ioc_skipped", ioc_id=ioc_id, reason="client_unavailable")
             return None
         try:
             self.ensure_indices()
             resp = client.index(index=self.index_iocs, body=document, id=ioc_id, refresh=False)
             return resp.get("_id")
         except Exception as exc:
-            logger.warning("opensearch_index_ioc_failed", error=str(exc))
+            logger.warning("opensearch_index_ioc_failed", ioc_id=ioc_id, error=str(exc))
             return None
 
     async def index_alert(self, alert_id: str, document: dict) -> str | None:
@@ -140,6 +145,7 @@ class OpenSearchClient(SearchBackend):
             return []
         client = self._get_client()
         if client is None:
+            logger.warning("opensearch_search_skipped", reason="client_unavailable")
             return []
         try:
             body: dict[str, Any] = {

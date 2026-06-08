@@ -1,151 +1,14 @@
-﻿import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import '../styles/alerts-futuristic.css';
 import { useAlertUIStore } from '../store/useAlertUIStore';
 import { useSystemStore } from '../store/useSystemStore';
-import type { Severity, AlertState, Alert, Ioc, TimelineStep, Enrichment } from '../store/types';
+import type { Severity } from '../store/types';
+import { MOCK_ALERTS } from '../data/mockAlerts';
+import { SEV_ORDER, ANALYSTS, formatStateLabel, formatAnalyst } from '../utils/alertUtils';
 
-const ALERTS: Alert[] = [
-  {
-    id: 'ALT-20240528-001',
-    severity: 'CRITICAL',
-    title: 'Credential Dumping via LSASS Process Access',
-    source: 'CrowdStrike',
-    entity: 'WIN-PROD-001',
-    tactic: 'Credential Access',
-    technique: 'T1003.001 — LSASS Memory',
-    detected: '21:43:12',
-    state: 'IN_PROGRESS',
-    analyst: 'A. Reed',
-    correlations: 3,
-    risk: 92,
-    desc: 'Falcon sensor detected LSASS memory read by suspicious process mimikatz.exe. Process spawned under SYSTEM context from non-standard parent cmd.exe.',
-    iocs: [
-      { type: 'SHA256', val: 'e3b0c44298fc1c14', conf: 95 },
-      { type: 'PROCESS', val: 'mimikatz.exe', conf: 98 },
-      { type: 'HOST', val: 'WIN-PROD-001', conf: 100 },
-    ],
-    timeline: [
-      { t: '21:43:12', txt: 'Falcon EDR detected LSASS memory access', act: true },
-      { t: '21:43:15', txt: 'Process tree captured — parent: cmd.exe' },
-      { t: '21:44:02', txt: 'Assigned to A. Reed for triage' },
-      { t: '21:45:30', txt: 'Investigation in progress — awaiting memory dump' },
-    ],
-    enrichment: { abuseipdb: null, virustotal: '5/72 detections', greynoise: 'Not observed' },
-  },
-  {
-    id: 'ALT-20240528-002',
-    severity: 'CRITICAL',
-    title: 'Shadow Copy Deletion — Ransomware Precursor Activity',
-    source: 'CrowdStrike',
-    entity: 'FILE-SRV-03',
-    tactic: 'Impact',
-    technique: 'T1490 — Inhibit System Recovery',
-    detected: '21:38:55',
-    state: 'ESCALATED',
-    analyst: 'J. Chen',
-    correlations: 0,
-    risk: 96,
-    desc: 'vssadmin.exe executed with delete shadows parameter. Consistent with pre-encryption stage of ransomware deployment.',
-    iocs: [
-      { type: 'CMD', val: 'vssadmin delete shadows /all', conf: 99 },
-      { type: 'PROC', val: 'vssadmin.exe (SYSTEM)', conf: 97 },
-    ],
-    timeline: [
-      { t: '21:38:55', txt: 'Shadow copy deletion command detected', act: true },
-      { t: '21:39:01', txt: 'Alert escalated — potential ransomware' },
-      { t: '21:39:20', txt: 'J. Chen investigating — host isolated' },
-    ],
-    enrichment: { abuseipdb: null, virustotal: null, greynoise: null },
-  },
-  {
-    id: 'ALT-20240528-003',
-    severity: 'HIGH',
-    title: 'Lateral Movement via Pass-the-Hash Attack',
-    source: 'Defender ATP',
-    entity: 'WIN-DEV-027',
-    tactic: 'Lateral Movement',
-    technique: 'T1550.002 — Pass the Hash',
-    detected: '21:35:41',
-    state: 'ACKNOWLEDGED',
-    analyst: 'A. Reed',
-    correlations: 2,
-    risk: 78,
-    desc: 'Authentication event from non-interactive logon using NTLM hash. Source host WIN-DEV-027 is not a domain admin system.',
-    iocs: [
-      { type: 'IP', val: '10.20.1.27', conf: 85 },
-      { type: 'ACCOUNT', val: 'svc-backup\\SYSTEM', conf: 90 },
-    ],
-    timeline: [
-      { t: '21:35:41', txt: 'NTLM hash authentication detected', act: true },
-      { t: '21:36:10', txt: 'Correlated with ALT-001 credential dump' },
-      { t: '21:37:00', txt: 'Acknowledged by A. Reed' },
-    ],
-    enrichment: { abuseipdb: 'Not listed', virustotal: null, greynoise: 'Not observed' },
-  },
-  {
-    id: 'ALT-20240528-004',
-    severity: 'HIGH',
-    title: 'Suspicious PowerShell Encoded Command Execution',
-    source: 'SIEM',
-    entity: 'WIN-HR-012',
-    tactic: 'Execution',
-    technique: 'T1059.001 — PowerShell',
-    detected: '21:30:22',
-    state: 'NEW',
-    analyst: null,
-    correlations: 0,
-    risk: 71,
-    desc: 'Encoded base64 PowerShell command executed by non-admin user. Command decodes to a web download cradle targeting an external IP.',
-    iocs: [
-      { type: 'URL', val: 'hxxp://194.165.16.11/stage2.ps1', conf: 88 },
-      { type: 'CMD', val: 'powershell -enc JABz...', conf: 80 },
-    ],
-    timeline: [
-      { t: '21:30:22', txt: 'Encoded PS execution detected', act: true },
-      { t: '21:30:25', txt: 'Network connection attempt to 194.165.16.11' },
-    ],
-    enrichment: { abuseipdb: 'Reported 47 times', virustotal: '12/72 flagged', greynoise: 'Malicious' },
-  },
-  {
-    id: 'ALT-20240528-005',
-    severity: 'HIGH',
-    title: 'C2 Beacon — Outbound to Known Malicious Infrastructure',
-    source: 'NDR',
-    entity: 'WIN-PROD-044',
-    tactic: 'Command & Control',
-    technique: 'T1071.001 — Web Protocols',
-    detected: '21:28:17',
-    state: 'NEW',
-    analyst: null,
-    correlations: 1,
-    risk: 83,
-    desc: 'Periodic HTTP beaconing to 194.165.16.11 every 60 seconds. Consistent with Cobalt Strike beacon profile. Jitter pattern matches known C2 framework.',
-    iocs: [
-      { type: 'IP', val: '194.165.16.11', conf: 94 },
-      { type: 'DOMAIN', val: 'update-svc.net', conf: 91 },
-      { type: 'PORT', val: '443/TCP', conf: 75 },
-    ],
-    timeline: [
-      { t: '21:28:17', txt: 'First beacon detected', act: true },
-      { t: '21:29:17', txt: 'Second beacon — 60s interval confirmed' },
-      { t: '21:30:17', txt: 'Third beacon — C2 profile match' },
-    ],
-    enrichment: { abuseipdb: 'Reported 214 times', virustotal: '48/72 flagged', greynoise: 'Malicious — Cobalt Strike' },
-  },
-];
+const ALERTS = MOCK_ALERTS;
 
 type SortKey = 'severity' | 'id' | 'entity' | 'detected';
-
-function formatStateLabel(state: AlertState) {
-  return state.replace('_', ' ');
-}
-
-function formatAnalyst(analyst: string | null) {
-  if (!analyst) return 'Unassigned';
-  const parts = analyst.split(' ');
-  return parts.length > 1 ? parts[1] : analyst;
-}
-
 export default function NeptuneConsole() {
   // Subscribe to UI state from the centralized store
   const selectedId = useAlertUIStore((state) => state.selectedAlertId);
@@ -191,7 +54,7 @@ export default function NeptuneConsole() {
         alert.tactic.toLowerCase().includes(term);
       return matchesSeverity && matchesState && matchesSearch;
     }).sort((a, b) => {
-      if (sortKey === 'severity') return (['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].indexOf(a.severity) - ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'].indexOf(b.severity)) * sortDir;
+      if (sortKey === 'severity') return (SEV_ORDER[a.severity] - SEV_ORDER[b.severity]) * sortDir;
       if (sortKey === 'id') return a.id.localeCompare(b.id) * sortDir;
       if (sortKey === 'entity') return a.entity.localeCompare(b.entity) * sortDir;
       return sortDir === 1 ? a.detected.localeCompare(b.detected) : b.detected.localeCompare(a.detected);
@@ -228,12 +91,7 @@ export default function NeptuneConsole() {
     setSelectedRows(new Set(filteredAlerts.map((alert) => alert.id)));
   };
 
-  const analystData: Record<string, { initials: string; color: string }> = {
-    'A. Reed': { initials: 'AR', color: '#7c3aed' },
-    'J. Chen': { initials: 'JC', color: '#2563eb' },
-    'M. Okafor': { initials: 'MO', color: '#059669' },
-    'S. Patel': { initials: 'SP', color: '#b45309' },
-  };
+  const analystData = ANALYSTS;
 
   const selectedCount = selectedRows.size;
   const selectAllChecked = filteredAlerts.length > 0 && selectedCount === filteredAlerts.length;

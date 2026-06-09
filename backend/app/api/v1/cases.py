@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.cases.repository import CaseRepository
 from app.core.dependencies import CurrentUserDep, DbSession
-from app.schemas.cases import CaseCreateRequest, CaseListResponse, CaseResponse
+from app.schemas.cases import CaseCreateRequest, CaseListResponse, CaseResponse, CaseUpdateRequest
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -61,6 +61,31 @@ async def list_cases(
         page=page,
         page_size=page_size,
     )
+
+
+@router.patch("/{case_id}", response_model=CaseResponse)
+async def update_case(
+    case_id: UUID,
+    body: CaseUpdateRequest,
+    current_user: CurrentUserDep,
+    db: DbSession,
+) -> CaseResponse:
+    repo = CaseRepository(db)
+    try:
+        case = await repo.update_case(
+            current_user.tenant_id,
+            case_id,
+            title=body.title,
+            description=body.description,
+            severity=body.severity,
+            status=body.status,
+            alert_ids=body.alert_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if case is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return _to_case_response(case)
 
 
 @router.get("/{case_id}", response_model=CaseResponse)

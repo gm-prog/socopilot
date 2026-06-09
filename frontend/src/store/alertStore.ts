@@ -57,6 +57,7 @@ export interface AlertStoreState {
 
   setAlerts: (alerts: AlertSummary[]) => void;
   addAlert: (alert: AlertSummary, maxQueueSize?: number) => void;
+  addAlertsBatch: (alerts: AlertSummary[], maxQueueSize?: number) => void;
   clearAlerts: () => void;
 
   setSelectedAlertId: (id: string | null) => void;
@@ -126,6 +127,18 @@ export const useAlertStore = create<AlertStoreState>((set, get) => ({
       return {
         alerts: [alert, ...filtered].slice(0, maxQueueSize),
       };
+    }),
+
+  addAlertsBatch: (incoming, maxQueueSize = 250) =>
+    set((state) => {
+      const byId = new Map(state.alerts.map((a) => [a.id, a]));
+      for (const alert of incoming) {
+        byId.set(alert.id, alert);
+      }
+      const merged = Array.from(byId.values()).sort((a, b) =>
+        b.detected_at.localeCompare(a.detected_at)
+      );
+      return { alerts: merged.slice(0, maxQueueSize) };
     }),
 
   clearAlerts: () => set({ alerts: [] }),

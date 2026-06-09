@@ -1,4 +1,8 @@
-"""Synchronous database session for Celery workers."""
+"""Synchronous database session management.
+
+Use this module only from Celery tasks and other synchronous worker contexts.
+FastAPI routes and async services must use app.db.session instead.
+"""
 
 from collections.abc import Generator
 from contextlib import contextmanager

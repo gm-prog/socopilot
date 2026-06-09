@@ -1,0 +1,32 @@
+# Ignore Python virtual environments
+venv/
+.venv/
+**/.venv/
+**/venv/
+
+# Node modules and build artifacts
+node_modules/
+dist/
+build/
+
+# Git
+.git
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+
+# Local DBs and logs
+*.sqlite
+*.db
+*.log
+
+# VS Code
+.vscode/
+
+# OneDrive lock or placeholders
+~$*
+.DS_Store

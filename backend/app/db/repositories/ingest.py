@@ -1,3 +1,4 @@
+from app.services.embedding import get_embedding
 """Ingest pipeline persistence."""
 
 from datetime import UTC, datetime
@@ -63,7 +64,7 @@ class IngestRepository:
     self,
     *,
     tenant_id: UUID,
-    raw_event_id: UUID,
+    raw_event_id: UUID | None,
     canonical: CanonicalAlertSchema,
     dedup: DedupResult,
   ) -> NormalizedAlert:
@@ -92,6 +93,7 @@ class IngestRepository:
       duplicate_count=1,
       tags=[],
     )
+    alert.embedding = get_embedding(alert.description)
     self.session.add(alert)
     self.session.flush()
     return alert

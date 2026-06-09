@@ -3,17 +3,54 @@
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, status
+from kombu.exceptions import OperationalError
 
 from app.connectors.generic_json import GenericJsonConnector
 from app.core.dependencies import CurrentUserDep, DbSession
 from app.core.logging import get_logger
+from app.ingest.event_service import IngestEventService
 from app.ingest.service import IngestService
 from app.middleware.correlation import CORRELATION_HEADER
-from app.schemas.ingest import IngestAlertsRequest, IngestAlertsResponse, IngestItemResponse
-
+from app.schemas.ingest import (
+    IngestAlertsRequest,
+    IngestAlertsResponse,
+    IngestEventQueuedResponse,
+    IngestEventRequest,
+    IngestItemResponse,
+)
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 logger = get_logger(__name__)
 connector = GenericJsonConnector()
+
+
+@router.post(
+    "/event",
+    response_model=IngestEventQueuedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def ingest_event(body: IngestEventRequest, db: DbSession) -> IngestEventQueuedResponse:
+    """
+    Queue a raw SOC event for asynchronous processing.
+
+    Stores a raw_events row, then runs normalize → IOC → severity → persist in the worker.
+    """
+    service = IngestEventService(db)
+    try:
+        return await service.queue_event(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except OperationalError as exc:
+        logger.exception("ingest_queue_unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ingest queue unavailable — ensure Redis and Celery worker are running",
+        ) from exc
+    except Exception as exc:
+        logger.exception("ingest_queue_failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to enqueue ingest event",
+        ) from exc
 
 
 @router.post("/alerts", response_model=IngestAlertsResponse, status_code=status.HTTP_202_ACCEPTED)

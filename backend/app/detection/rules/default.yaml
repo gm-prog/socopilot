@@ -1,0 +1,15 @@
+# Dynamic detection rules — edit without code changes.
+rules:
+  - id: failed_logins_burst
+    title: "Failed login burst"
+    severity: high
+    window_minutes: 5
+    conditions:
+      failed_logins_gt: 10
+
+  - id: suspicious_powershell
+    title: "Suspicious PowerShell execution"
+    severity: critical
+    window_minutes: 15
+    conditions:
+      event_type_contains: powershell

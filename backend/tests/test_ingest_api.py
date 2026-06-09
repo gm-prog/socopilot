@@ -1,11 +1,46 @@
 """Ingest API tests with mocked ingest service."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
 from app.schemas.ingest import IngestItemResponse
+
+
+@pytest.mark.asyncio
+@patch("app.api.v1.ingest.IngestEventService")
+async def test_ingest_event_queues_celery_task(mock_service_cls):
+    from httpx import ASGITransport, AsyncClient
+
+    from app.main import app
+    from app.schemas.ingest import IngestEventQueuedResponse
+
+    mock_service = mock_service_cls.return_value
+    mock_service.queue_event = AsyncMock(
+        return_value=IngestEventQueuedResponse(status="queued", task_id="celery-task-abc123")
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/ingest/event",
+            json={
+                "source": "firewall",
+                "event_type": "login_attempt",
+                "payload": {
+                    "ip": "8.8.8.8",
+                    "user": "admin",
+                    "status": "failed",
+                },
+            },
+        )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert data["status"] == "queued"
+    assert data["task_id"] == "celery-task-abc123"
+    mock_service.queue_event.assert_called_once()
 
 
 @pytest.mark.asyncio

@@ -1,18 +1,28 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON
-from sqlalchemy.sql import func
-from app.db.base import Base
+"""Investigation timeline event model."""
+
+import uuid
+from typing import Any
+
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
-class InvestigationEvent(Base):
+class InvestigationEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "investigation_events"
 
-    id = Column(Integer, primary_key=True, index=True)
-
-    alert_id = Column(Integer, ForeignKey("alerts.id"), index=True)
-
-    event_type = Column(String, nullable=False)
-    payload = Column(JSON, nullable=True)
-
-    user_id = Column(Integer, nullable=True)
-
-    created_at = Column(DateTime, server_default=func.now())
+    alert_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("alerts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )

@@ -1,193 +1,147 @@
-# SOCoPilot
+﻿# SOCoPilot
 
 **AI SIEM Alert Triage & False Positive Reducer**
 
 Enterprise-grade SOC platform foundation for ingesting SIEM alerts, enriching with threat intelligence, AI classification, MITRE ATT&CK mapping, and analyst-ready triage reports.
 
-> **Phase 1** — Generic JSON webhook ingest, normalization, deduplication, alert APIs, and queue UI.
+This repository is linked to GitHub:
 
-## Stack
+- `https://github.com/gm-prog/socopilot.git`
 
-| Layer | Technology |
-|-------|------------|
-| API | FastAPI, SQLAlchemy, Alembic, Pydantic |
-| Workers | Celery, Redis |
-| Database | PostgreSQL 16 |
-| LLM | Ollama (`mistral:7b-instruct`, `nomic-embed-text`) |
-| Frontend | React, TypeScript, TailwindCSS |
-| Observability | Prometheus, Grafana, Flower |
+---
+
+## Status Summary
+
+- Backend: FastAPI app, authentication, alert ingest, normalization, deduplication, Celery tasks, and health endpoints.
+- Frontend: React + TypeScript dashboard with alert listing and investigator note support.
+- Docker: `docker/docker-compose.yml` currently defines `postgres`, `redis`, `api`, and `frontend`.
+- GitHub CI: `.github/workflows/ci.yml` is present and covers frontend lint/test and backend pytest.
+
+> Current maturity: active development. Functional for local development after dependency setup, but not production-ready or entirely consistent across documentation.
+
+---
+
+## What Works
+
+- Backend API uses FastAPI, SQLAlchemy Async, Alembic migrations, and Celery.
+- Frontend uses Vite, React, TypeScript, Zustand, and API client integration.
+- GitHub Actions configuration exists for CI.
+- Dev scripts simplify stack startup and verification.
+
+## Where the Project Is Fragile
+
+- `docker/docker-compose.yml` is incomplete compared to the docs: it does not declare frontend, Grafana, Prometheus, Flower, or Ollama services.
+- Local `pytest` fails unless optional dependencies such as `pgvector` are installed.
+- Documentation currently over-promises the running stack versus what the main compose file actually starts.
+- The working tree has many modified/untracked files, so the current local branch is not clean.
+- Production readiness is not established: no TLS, secrets management, scaling, or hardened deployment docs.
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker Desktop (or Docker Engine + Compose v2)
-- 8 GB+ RAM recommended (Ollama models are large)
-- Ports: 3000, 3001, 5432, 5555, 6379, 8000, 9090, 11434
+- Docker Desktop or Docker Engine + Compose v2
+- Node.js 20+ for frontend development
+- Python 3.12 for backend dev/test
+- 8 GB+ RAM recommended for model support
 
-### 1. Configure environment
+### 1. Prepare environment
 
 ```powershell
-cd socopilot
+cd c:\Users\deysa\OneDrive\Documents\socopilot
 copy .env.example .env
 ```
 
 ### 2. Start the stack
 
 ```powershell
-# PowerShell
 .\scripts\dev.ps1 -Build
-
-# Or Make (Git Bash / WSL)
-make up
 ```
 
-### 3. Pull Ollama models (first run, optional but recommended)
-
-```powershell
-docker compose -f docker/docker-compose.yml run --rm ollama-init
-```
-
-### 4. Verify
+### 3. Verify the stack
 
 ```powershell
 .\scripts\verify.ps1
 ```
 
-## Service URLs
+### 4. Run frontend locally
 
-| Service | URL |
-|---------|-----|
-| API Docs | http://localhost:8000/docs |
-| API Health | http://localhost:8000/api/v1/health |
-| Readiness | http://localhost:8000/api/v1/ready |
-| Frontend | http://localhost:3000 |
-| Grafana | http://localhost:3001 (admin / socopilot) |
-| Flower | http://localhost:5555 |
-| Prometheus | http://localhost:9090 |
-
-## API Examples
-
-### Register tenant + admin
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"changeme123","tenant_name":"acme-soc","role":"admin"}'
+```powershell
+cd frontend
+npm install
+npm run dev
 ```
 
-### Login
+---
 
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"changeme123"}'
+## Testing
+
+### Backend
+
+```powershell
+cd backend
+pip install -r requirements.txt
+pytest -q
 ```
 
-### Authenticated profile
+### Frontend
 
-```bash
-curl http://localhost:8000/api/v1/auth/me \
-  -H "Authorization: Bearer <token>"
+```powershell
+cd frontend
+npm install
+npm run lint
+npm run test
 ```
 
-### Ingest alert (Phase 1)
+---
 
-```bash
-curl -X POST http://localhost:8000/api/v1/ingest/alerts \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -H "X-Correlation-ID: $(uuidgen)" \
-  -d '{
-    "title": "Suspicious login",
-    "severity": "high",
-    "source": "webhook",
-    "rule_id": "auth-001",
-    "entities": {"src_ip": ["203.0.113.10"]}
-  }'
-```
+## GitHub CI
 
-### List alerts
+CI is configured in `.github/workflows/ci.yml` with the following jobs:
 
-```bash
-curl http://localhost:8000/api/v1/alerts \
-  -H "Authorization: Bearer <token>"
-```
+- `frontend`: install dependencies, lint, and run tests.
+- `backend`: install Python dependencies and run `pytest`.
+
+This is a strong starting point; keep the workflow updated if the package manager or test commands change.
+
+---
+
+## Recommended Improvements
+
+1. Align the main `docker/docker-compose.yml` with README expectations.
+2. Add the missing services to Docker compose or update docs to match the actual stack.
+3. Add production deployment and secrets guidance.
+4. Consolidate backend dependency management between `pyproject.toml` and `requirements.txt`.
+5. Clean the git working tree before pushing or tagging releases.
+6. Add a simple contributor section and issue template for GitHub.
+
+---
 
 ## Project Structure
 
 ```
 socopilot/
-├── backend/           # FastAPI application
-├── frontend/          # React dashboard
-├── docker/            # Compose & Dockerfiles
-├── infra/             # Prometheus & Grafana
-├── scripts/           # Dev & verify scripts
-└── docs/              # Architecture docs
+├── backend/           # FastAPI backend, DB models, API routes, Celery tasks
+├── frontend/          # React dashboard, API client, UI components
+├── docker/            # Compose files and Dockerfiles
+├── infra/             # Grafana and Prometheus provisioning
+├── scripts/           # Dev and verification scripts
+├── docs/              # Architecture documentation
+└── .github/           # GitHub Actions CI configuration
 ```
 
-## Troubleshooting: frontend "API unreachable — failed to fetch"
+---
 
-**Cause:** Browser opened `http://127.0.0.1:3000` while the app called `http://localhost:8000` directly — CORS blocked the request (no `Access-Control-Allow-Origin` for 127.0.0.1).
+## Current Readiness
 
-**Fix applied:** Frontend now uses **same-origin** `/api/...` requests proxied by nginx to FastAPI. Works for both `localhost` and `127.0.0.1`.
+- Good for local development once dependencies are installed.
+- Not yet a safe production release.
+- Needs better documentation around actual service composition and dependency install.
+- Requires cleanup of the working tree and verification of the GitHub CI workflow.
 
-```powershell
-.\scripts\rebuild-frontend.ps1
-```
-
-Verify proxy:
-
-```powershell
-Invoke-RestMethod http://localhost:3000/api/v1/health
-Invoke-RestMethod http://127.0.0.1:3000/api/v1/health
-```
-
-Hard-refresh the browser: `Ctrl+Shift+R`.
-
-## Troubleshooting: ingest returns 404
-
-If `POST /api/v1/ingest/alerts` returns `{"detail":"Not Found"}`, the API container is running an **old image** (Phase 0 code only).
-
-```powershell
-.\scripts\rebuild-backend.ps1
-```
-
-Verify routes inside the container:
-
-```powershell
-docker compose -f docker/docker-compose.yml exec api ls /app/app/api/v1
-docker compose -f docker/docker-compose.yml exec api python -c "from app.main import app; print([r.path for r in app.routes if 'ingest' in r.path])"
-```
-
-Expected: `['/api/v1/ingest/alerts']`
-
-After backend code changes, always rebuild: `.\scripts\dev.ps1 -Build`
-
-## Development
-
-```powershell
-# Logs
-docker compose -f docker/docker-compose.yml logs -f api
-
-# Run migrations manually
-docker compose -f docker/docker-compose.yml exec api alembic upgrade head
-
-# Stop
-docker compose -f docker/docker-compose.yml down
-```
-
-## Phase Roadmap
-
-| Phase | Scope |
-|-------|-------|
-| **0** ✅ | Scaffold, auth skeleton, health, Celery, Ollama connectivity |
-| **1** ✅ | Generic JSON webhook ingest, normalization, dedup, alert APIs, queue UI |
-| **2** ✅ | IOC extraction, TI enrichment, OpenSearch, embeddings stub, workflow, DLQ, replay |
-| 3 | AI Triage Agent + Qdrant |
-| 4 | MITRE mapping + correlation |
-| 5 | Reports + full UI |
-| 6 | Analyst feedback loop |
+---
 
 ## License
 

@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 _ENV_FILES = tuple(
@@ -42,6 +43,7 @@ class Settings(BaseSettings):
     postgres_user: str = Field(default="socopilot", alias="POSTGRES_USER")
     postgres_password: str = Field(default="socopilot_dev", alias="POSTGRES_PASSWORD")
     postgres_db: str = Field(default="socopilot", alias="POSTGRES_DB")
+    database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
     redis_host: str = Field(default="localhost", alias="REDIS_HOST")
     redis_port: int = Field(default=6379, alias="REDIS_PORT")
@@ -71,6 +73,7 @@ class Settings(BaseSettings):
 
     dedup_time_bucket_minutes: int = Field(default=15, alias="DEDUP_TIME_BUCKET_MINUTES")
     ingest_default_source: str = Field(default="webhook", alias="INGEST_DEFAULT_SOURCE")
+    ingest_default_tenant_id: str | None = Field(default=None, alias="INGEST_DEFAULT_TENANT_ID")
 
     enrichment_timeout_seconds: int = Field(default=15, alias="ENRICHMENT_TIMEOUT_SECONDS")
     enrichment_max_retries: int = Field(default=3, alias="ENRICHMENT_MAX_RETRIES")
@@ -113,18 +116,36 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def database_url(self) -> str:
-        return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+        url = self.database_url_override or (
+            f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+        parsed = make_url(url)
+        if parsed.drivername in {"postgresql", "postgres"}:
+            parsed = parsed.set(drivername="postgresql+asyncpg")
+        return parsed.render_as_string(hide_password=False)
 
     @computed_field
     @property
     def database_url_sync(self) -> str:
-        return (
+        url = self.database_url_override or (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+        parsed = make_url(url)
+        if parsed.drivername in {"postgresql+asyncpg", "postgres+asyncpg"}:
+            parsed = parsed.set(drivername="postgresql")
+        return parsed.render_as_string(hide_password=False)
+
+    @computed_field
+    @property
+    def redacted_database_url(self) -> str:
+        return make_url(self.database_url).render_as_string(hide_password=True)
+
+    @computed_field
+    @property
+    def redacted_database_url_sync(self) -> str:
+        return make_url(self.database_url_sync).render_as_string(hide_password=True)
 
     @computed_field
     @property

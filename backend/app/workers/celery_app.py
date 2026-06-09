@@ -10,12 +10,6 @@ celery_app = Celery(
     "socopilot",
     broker=settings.broker_url,
     backend=settings.result_backend_url,
-    include=[
-        "app.workers.tasks.health",
-        "app.workers.tasks.ingest",
-        "app.workers.tasks.phase2",
-        "app.workers.tasks.enrichment",
-    ],
 )
 
 celery_app.conf.update(
@@ -28,6 +22,7 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_default_queue="default",
+    include=["app.workers.tasks"],
     task_routes={
         "app.workers.tasks.health.*": {"queue": "default"},
         "app.workers.tasks.ingest.*": {"queue": "ingest"},
@@ -35,3 +30,5 @@ celery_app.conf.update(
         "app.workers.tasks.enrichment.*": {"queue": "enrichment"},
     },
 )
+
+celery_app.autodiscover_tasks(["app.workers"], related_name="tasks", force=True)

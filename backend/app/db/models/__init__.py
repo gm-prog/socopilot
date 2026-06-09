@@ -9,6 +9,7 @@ from app.db.models.case_alert import CaseAlert
 from app.db.models.enrichment import EnrichmentJob, EnrichmentResult
 from app.db.models.ingest_dlq import IngestDLQ
 from app.db.models.ingest_failure import IngestFailure
+from app.db.models.investigation_event import InvestigationEvent
 from app.db.models.normalized_alert import NormalizedAlert
 from app.db.models.pipeline import PipelineJob
 from app.db.models.raw_event import RawEvent
@@ -31,4 +32,5 @@ __all__ = [
     "EnrichmentResult",
     "IngestDLQ",
     "AlertEmbedding",
+    "InvestigationEvent",
 ]

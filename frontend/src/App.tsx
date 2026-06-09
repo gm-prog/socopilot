@@ -9,6 +9,7 @@ import NeptuneConsole from "./pages/NeptuneConsole";
 import { AuthProvider } from "./context/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import LoginPage from "./pages/Login";
+import NotificationToast from "./components/NotificationToast";
 
 export default function App() {
   const location = useLocation();
@@ -16,6 +17,7 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <NotificationToast />
       {isRetroRoute ? (
         <Routes>
           <Route path="/alerts" element={<ProtectedRoute><AlertsPage /></ProtectedRoute>} />

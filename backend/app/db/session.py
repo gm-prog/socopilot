@@ -1,4 +1,8 @@
-"""Async database session management."""
+"""Async database session management.
+
+Use this module only from FastAPI routes, async services, and other asyncio
+execution contexts. Celery workers must use app.db.sync_session instead.
+"""
 
 from collections.abc import AsyncGenerator
 

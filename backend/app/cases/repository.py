@@ -71,6 +71,45 @@ class CaseRepository:
         )
         return list(result.scalars().all()), total
 
+    async def update_case(
+        self,
+        tenant_id: UUID,
+        case_id: UUID,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+        severity: str | None = None,
+        status: str | None = None,
+        alert_ids: list[UUID] | None = None,
+    ) -> Case | None:
+        case = await self.get_case(tenant_id, case_id)
+        if case is None:
+            return None
+        if title is not None:
+            case.title = title
+        if description is not None:
+            case.description = description
+        if severity is not None:
+            case.severity = severity
+        if status is not None:
+            case.status = status
+        if alert_ids is not None:
+            unique_alert_ids = list(dict.fromkeys(alert_ids))
+            if unique_alert_ids:
+                result = await self.session.execute(
+                    select(NormalizedAlert.id).where(
+                        NormalizedAlert.tenant_id == tenant_id,
+                        NormalizedAlert.id.in_(unique_alert_ids),
+                    )
+                )
+                found_ids = set(result.scalars().all())
+                if len(found_ids) != len(unique_alert_ids):
+                    raise ValueError("One or more alerts were not found for this tenant")
+            case.case_alerts = [CaseAlert(alert_id=aid) for aid in (alert_ids or [])]
+        await self.session.flush()
+        await self.session.refresh(case)
+        return case
+
     async def get_case(self, tenant_id: UUID, case_id: UUID) -> Case | None:
         result = await self.session.execute(
             select(Case)

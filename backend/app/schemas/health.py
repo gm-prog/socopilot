@@ -18,3 +18,9 @@ class ReadinessCheck(BaseModel):
 class ReadinessResponse(BaseModel):
     status: str
     checks: list[ReadinessCheck]
+
+
+class SubsystemHealthResponse(BaseModel):
+    status: str
+    checks: dict[str, str]
+    version: str

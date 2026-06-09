@@ -35,3 +35,11 @@ class CaseListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class CaseUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = None
+    severity: CaseSeverity | None = None
+    status: CaseStatus | None = None
+    alert_ids: list[UUID] | None = None

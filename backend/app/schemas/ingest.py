@@ -51,3 +51,19 @@ class IngestAlertsResponse(BaseModel):
     correlation_id: str
     accepted: int
     items: list[IngestItemResponse]
+
+
+class IngestEventRequest(BaseModel):
+    """SOC v2 event-driven ingest payload."""
+
+    source: str = Field(min_length=1, max_length=100)
+    event_type: str = Field(min_length=1, max_length=100)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str | None = None
+    tenant_id: UUID | None = None
+    correlation_id: str | None = None
+
+
+class IngestEventQueuedResponse(BaseModel):
+    status: str = "queued"
+    task_id: str

@@ -94,19 +94,14 @@ const setSortDir = useAlertUIStore(
   const openAlerts = ALERTS.filter((alert) => alert.state !== 'CLOSED' && alert.state !== 'FALSE_POSITIVE').length;
 
   const toggleRow = (id: string, checked: boolean) => {
-    setSelectedRows((current) => {
-      const next = new Set(current);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
+    const next = new Set(selectedRows);
+    if (checked) next.add(id);
+    else next.delete(id);
+    setSelectedRows(next);
   };
 
   const toggleAll = (checked: boolean) => {
-    setSelectedRows(() => {
-      if (!checked) return new Set();
-      return new Set(filteredAlerts.map((alert) => alert.id));
-    });
+    setSelectedRows(checked ? new Set(filteredAlerts.map((alert) => alert.id)) : new Set());
   };
 
   const clearSelection = () => setSelectedRows(new Set());

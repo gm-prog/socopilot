@@ -1,43 +1,52 @@
-import { apiUrl } from "../config/api";
-import { fetchWithAuth } from "./auth";
-import { ensureOk } from "./client";
+import { z } from "zod";
+
+import { apiGet, apiPatch, apiPost } from "./client";
+import {
+  AlertDetailSchema,
+  AlertListResponseSchema,
+  EnrichmentResultListSchema,
+} from "../schemas/alert";
 import type { AlertDetail, AlertListResponse, EnrichmentResult } from "../types/alert";
 
-
-export async function fetchAlerts(params?: {
+export interface FetchAlertsParams {
   page?: number;
   page_size?: number;
   severity?: string;
   lifecycle_state?: string;
-}): Promise<AlertListResponse> {
+}
+
+export async function fetchAlerts(
+  params?: FetchAlertsParams
+): Promise<AlertListResponse> {
   const qs = new URLSearchParams();
   if (params?.page) qs.set("page", String(params.page));
   if (params?.page_size) qs.set("page_size", String(params.page_size));
   if (params?.severity) qs.set("severity", params.severity);
   if (params?.lifecycle_state) qs.set("lifecycle_state", params.lifecycle_state);
 
-  const res = await fetchWithAuth(`${apiUrl("/api/v1/alerts")}?${qs}`);
-  await ensureOk(res, "Failed to load alerts");
-  return res.json();
+  const query = qs.toString();
+  const path = query ? `/api/v1/alerts?${query}` : "/api/v1/alerts";
+
+  return apiGet(path, AlertListResponseSchema);
 }
 
 export async function fetchAlert(id: string): Promise<AlertDetail> {
-  const res = await fetchWithAuth(apiUrl(`/api/v1/alerts/${id}`));
-  await ensureOk(res, "Failed to load alert");
-  return res.json();
+  return apiGet(`/api/v1/alerts/${id}`, AlertDetailSchema);
 }
 
-export async function fetchAlertEnrichment(alertId: string): Promise<EnrichmentResult[]> {
-  const res = await fetchWithAuth(apiUrl(`/api/v1/enrichment/alerts/${alertId}`));
-  if (res.status === 401) {
-    console.warn(`[fetchAlertEnrichment] Unauthorized for alert ${alertId}`);
+export async function fetchAlertEnrichment(
+  alertId: string
+): Promise<EnrichmentResult[]> {
+  try {
+    return await apiGet(
+      `/api/v1/enrichment/alerts/${alertId}`,
+      EnrichmentResultListSchema,
+      { silent: true }
+    );
+  } catch (err) {
+    // Enrichment is optional — empty list on failure
     return [];
   }
-  if (!res.ok) {
-    console.warn(`[fetchAlertEnrichment] Failed for alert ${alertId}: ${res.status}`);
-    return [];
-  }
-  return res.json();
 }
 
 export async function updateAlertWorkflow(
@@ -46,23 +55,26 @@ export async function updateAlertWorkflow(
     lifecycle_state?: string;
     analyst_notes?: string;
     tags?: string[];
-  },
+  }
 ): Promise<AlertDetail> {
-  const res = await fetchWithAuth(apiUrl(`/api/v1/alerts/${alertId}`), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  await ensureOk(res, "Update failed");
-  return res.json();
+  return apiPatch(`/api/v1/alerts/${alertId}`, AlertDetailSchema, body);
 }
 
-export async function semanticSearch(query: string, limit = 10): Promise<unknown> {
-  const res = await fetchWithAuth(apiUrl("/api/v1/search/semantic"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, limit }),
-  });
-  await ensureOk(res, "Search failed");
-  return res.json();
+const SemanticSearchResponseSchema = z.object({
+  results: z.array(
+    z.object({
+      alert_id: z.string().uuid(),
+      score: z.number(),
+      title: z.string().nullable().optional(),
+    })
+  ),
+  message: z.string().optional(),
+});
+
+export async function semanticSearch(query: string, limit = 10) {
+  return apiPost(
+    "/api/v1/search/semantic",
+    SemanticSearchResponseSchema,
+    { query, limit }
+  );
 }

@@ -14,10 +14,10 @@ async def get_timeline(
     alert_id: UUID,
     current_user: CurrentUserDep,
     db: DbSession,
-):
+) -> list[InvestigationEvent]:
     result = await db.execute(
         select(InvestigationEvent)
         .where(InvestigationEvent.alert_id == alert_id)
         .order_by(InvestigationEvent.created_at.asc())
     )
-    return result.scalars().all()
+    return list(result.scalars().all())

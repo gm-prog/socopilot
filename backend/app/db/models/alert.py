@@ -1,6 +1,7 @@
 """Alert model — Phase 0 base schema."""
 
 import uuid
+from pgvector.sqlalchemy import Vector
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
@@ -27,6 +28,7 @@ class Alert(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     alert_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
     severity: Mapped[str] = mapped_column(String(50), nullable=False, default="medium")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="RECEIVED", index=True)
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

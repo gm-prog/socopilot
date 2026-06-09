@@ -4,211 +4,163 @@ import { useAuth } from "../context/AuthContext";
 import { fetchAlerts } from "../api/alerts";
 import { websocketUrl } from "../config/api";
 import { WebSocketManager } from "../lib/websocketManager";
+import { AlertIngestBuffer } from "../lib/alertIngestBuffer";
+import { parseWebSocketAlertFrame } from "../lib/validation/parseWebSocketAlert";
 
 import { useAlertStore } from "../store/alertStore";
 
-import type { AlertSummary } from "../types/alert";
-
 interface UseAlertsStreamOptions {
-    maxQueueSize?: number;
-    enabled?: boolean;
+  maxQueueSize?: number;
+  enabled?: boolean;
+  /** Batch flush interval in ms (default 200) */
+  flushIntervalMs?: number;
 }
 
 export const useAlertsStream = ({
-    maxQueueSize = 250,
-    enabled = true,
+  maxQueueSize = 250,
+  enabled = true,
+  flushIntervalMs = 200,
 }: UseAlertsStreamOptions = {}) => {
-    const { token, isAuthenticated, refreshSession, logout } = useAuth();
+  const { token, isAuthenticated, refreshSession, logout } = useAuth();
 
-    const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [activeSocketCount, setActiveSocketCount] = useState(0);
 
-    const [error, setError] = useState<string | null>(null);
+  const managerRef = useRef<WebSocketManager | null>(null);
+  const bufferRef = useRef<AlertIngestBuffer | null>(null);
 
-    const [isLoading, setIsLoading] = useState(true);
+  const setAlerts = useAlertStore((state) => state.setAlerts);
+  const addAlertsBatch = useAlertStore((state) => state.addAlertsBatch);
 
-    const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const fetchHistoricalAlerts = useCallback(async () => {
+    if (!isAuthenticated || !token) {
+      return;
+    }
 
-    const [activeSocketCount, setActiveSocketCount] = useState(0);
+    try {
+      setIsLoading(true);
 
-    const managerRef = useRef<WebSocketManager | null>(null);
+      const response = await fetchAlerts({
+        page_size: maxQueueSize,
+      });
 
-    /**
-     * Zustand store actions
-     */
-    const setAlerts = useAlertStore((state) => state.setAlerts);
+      setAlerts(response.items);
 
-    const addAlert = useAlertStore((state) => state.addAlert);
+      setError(null);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Initial alert fetch failed";
+      setError(`Initial alert fetch failed: ${message}`);
+      setAlerts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, token, maxQueueSize, setAlerts]);
 
-    const fetchHistoricalAlerts = useCallback(async () => {
-        if (!isAuthenticated || !token) {
-            return;
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const buffer = new AlertIngestBuffer({
+      flushIntervalMs,
+      maxQueueSize,
+      onFlush: (batch, queueCap) => {
+        addAlertsBatch(batch, queueCap);
+      },
+    });
+    buffer.start();
+    bufferRef.current = buffer;
+
+    const manager = new WebSocketManager({
+      getUrl: () =>
+        websocketUrl("/ws/alerts", {
+          token,
+        }),
+
+      getToken: () => token,
+
+      createWebSocket: (url) => new WebSocket(url),
+
+      onOpen: () => {
+        setIsConnected(true);
+        setError(null);
+        setActiveSocketCount(1);
+        setReconnectAttempts(0);
+      },
+
+      onMessage: (event) => {
+        const incomingData = parseWebSocketAlertFrame(event.data);
+        if (!incomingData) {
+          return;
         }
+        buffer.enqueue(incomingData);
+      },
 
-        try {
-            setIsLoading(true);
+      onError: () => {
+        setIsConnected(false);
+        setError("Alert stream connection error. Attempting reconnect...");
+      },
 
-            const response = await fetchAlerts({
-                page_size: maxQueueSize,
-            });
+      onClose: () => {
+        setIsConnected(false);
+        setActiveSocketCount(0);
+      },
 
-            setAlerts(response.items || []);
+      onReconnectAttempt: (attempt, delayMs) => {
+        setReconnectAttempts(attempt);
+        setError(`Reconnect attempt ${attempt} in ${delayMs}ms`);
+      },
 
-            setError(null);
-        } catch (err: any) {
-            setError(
-                `Initial alert fetch failed: ${err.message}`
-            );
-
-            setAlerts([]);
-        } finally {
-            setIsLoading(false);
+      onAuthFailure: async () => {
+        const refreshed = await refreshSession();
+        if (!refreshed) {
+          await logout();
+          return false;
         }
-    }, [
-        isAuthenticated,
-        token,
-        maxQueueSize,
-        setAlerts,
-    ]);
+        return true;
+      },
 
-    const parseWebSocketFrame = useCallback(
-        (raw: string): AlertSummary | null => {
-            try {
-                const data = JSON.parse(raw);
+      initialBackoffMs: 500,
+      maxBackoffMs: 25000,
+      jitterMs: 100,
+      maxReconnectAttempts: 8,
+    });
 
-                if (data.type === "NEW_ALERT" && data.data) {
-                    return data.data as AlertSummary;
-                }
+    managerRef.current = manager;
 
-                if (data.id && data.title) {
-                    return data as AlertSummary;
-                }
+    if (isAuthenticated && token) {
+      fetchHistoricalAlerts();
+      manager.start();
+    }
 
-                return null;
-            } catch {
-                return null;
-            }
-        },
-        []
-    );
-
-    useEffect(() => {
-        if (!enabled) {
-            return;
-        }
-
-        const manager = new WebSocketManager({
-            getUrl: () =>
-                websocketUrl("/ws/alerts", {
-                    token,
-                }),
-
-            getToken: () => token,
-
-            createWebSocket: (url) =>
-                new WebSocket(url),
-
-            onOpen: () => {
-                setIsConnected(true);
-
-                setError(null);
-
-                setActiveSocketCount(1);
-
-                setReconnectAttempts(0);
-            },
-
-            onMessage: (event) => {
-                const incomingData =
-                    parseWebSocketFrame(event.data);
-
-                if (!incomingData) {
-                    return;
-                }
-
-                addAlert(
-                    incomingData,
-                    maxQueueSize
-                );
-            },
-
-            onError: () => {
-                setIsConnected(false);
-
-                setError(
-                    "Alert stream connection error. Attempting reconnect..."
-                );
-            },
-
-            onClose: () => {
-                setIsConnected(false);
-
-                setActiveSocketCount(0);
-            },
-
-            onReconnectAttempt: (
-                attempt,
-                delayMs
-            ) => {
-                setReconnectAttempts(attempt);
-
-                setError(
-                    `Reconnect attempt ${attempt} in ${delayMs}ms`
-                );
-            },
-
-            onAuthFailure: async () => {
-                const refreshed =
-                    await refreshSession();
-
-                if (!refreshed) {
-                    await logout();
-
-                    return false;
-                }
-
-                return true;
-            },
-
-            initialBackoffMs: 500,
-
-            maxBackoffMs: 25000,
-
-            jitterMs: 100,
-
-            maxReconnectAttempts: 8,
-        });
-
-        managerRef.current = manager;
-
-        if (isAuthenticated && token) {
-            fetchHistoricalAlerts();
-
-            manager.start();
-        }
-
-        return () => {
-            manager.dispose();
-
-            managerRef.current = null;
-        };
-    }, [
-        enabled,
-        token,
-        isAuthenticated,
-        refreshSession,
-        logout,
-        fetchHistoricalAlerts,
-        parseWebSocketFrame,
-        addAlert,
-        maxQueueSize,
-    ]);
-
-    return {
-        isConnected,
-        error,
-        isLoading,
-        reconnectAttempts,
-        activeSocketCount,
-        refetch: fetchHistoricalAlerts,
+    return () => {
+      buffer.dispose();
+      bufferRef.current = null;
+      manager.dispose();
+      managerRef.current = null;
     };
+  }, [
+    enabled,
+    token,
+    isAuthenticated,
+    refreshSession,
+    logout,
+    fetchHistoricalAlerts,
+    addAlertsBatch,
+    maxQueueSize,
+    flushIntervalMs,
+  ]);
+
+  return {
+    isConnected,
+    error,
+    isLoading,
+    reconnectAttempts,
+    activeSocketCount,
+    refetch: fetchHistoricalAlerts,
+  };
 };

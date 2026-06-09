@@ -26,3 +26,7 @@ class UUIDPrimaryKeyMixin:
         primary_key=True,
         default=uuid.uuid4,
     )
+
+
+# Import model modules so Alembic autogenerate sees the complete metadata.
+from app.db import models  # noqa: E402,F401

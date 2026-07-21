@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import type { z } from "zod";
 
 import { apiUrl } from "../config/api";
@@ -191,7 +190,6 @@ export async function fetchOllamaStatus(): Promise<Record<string, unknown>> {
   await ensureOk(res, "Ollama status failed");
   return res.json();
 }
-=======
 import type { z } from "zod";
 
 import { apiUrl } from "../config/api";
@@ -367,4 +365,3 @@ export async function fetchOllamaStatus(): Promise<Record<string, unknown>> {
   if (!res.ok) throw new Error(`Ollama status failed: ${res.status}`);
   return res.json();
 }
->>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)

@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.phase2 import IOCResponse
 
 
 class AlertSummary(BaseModel):
@@ -23,7 +24,7 @@ class AlertSummary(BaseModel):
     assigned_to: UUID | None = None
     tags: list[str] = Field(default_factory=list)
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AlertDetail(AlertSummary):
@@ -36,7 +37,7 @@ class AlertDetail(AlertSummary):
     analyst_notes: str | None = None
     assigned_at: datetime | None = None
     closed_at: datetime | None = None
-    iocs: list[dict[str, Any]] = Field(default_factory=list)
+    iocs: list[IOCResponse] = Field(default_factory=list)
 
 
 class AlertListResponse(BaseModel):

@@ -1,0 +1,9 @@
+{
+  "tenant_id": "00000000-0000-0000-0000-000000000000",
+  "raw_event_id": "11111111-1111-1111-1111-111111111111",
+  "event": {
+    "source": "test_source",
+    "event_type": "login",
+    "payload": {"username": "admin", "ip": "1.1.1.1"}
+  }
+}

@@ -54,6 +54,8 @@ export interface AlertStoreState {
   detailError: string | null;
   drawerTab: "normalized" | "raw" | "timeline";
   drawerNotes: string;
+  copilotOpen: boolean;
+  setCopilotOpen: (open: boolean) => void;
 
   setAlerts: (alerts: AlertSummary[]) => void;
   addAlert: (alert: AlertSummary, maxQueueSize?: number) => void;
@@ -118,6 +120,7 @@ export const useAlertStore = create<AlertStoreState>((set, get) => ({
   detailError: null,
   drawerTab: "normalized",
   drawerNotes: "",
+  copilotOpen: false,
 
   setAlerts: (alerts) => set({ alerts }),
 
@@ -189,6 +192,7 @@ export const useAlertStore = create<AlertStoreState>((set, get) => ({
   setDrawerTab: (tab) => set({ drawerTab: tab }),
 
   setDrawerNotes: (notes) => set({ drawerNotes: notes }),
+  setCopilotOpen: (open) => set({ copilotOpen: open }),
 
   loadAlertDetail: async (id) => {
     set({ detailLoading: true, detailError: null });
@@ -219,6 +223,7 @@ export const useAlertStore = create<AlertStoreState>((set, get) => ({
       detailError: null,
       drawerTab: "normalized",
       drawerNotes: "",
+  copilotOpen: false,
     }),
 
   updateAlertLifecycle: async (lifecycleState) => {

@@ -2,7 +2,7 @@
  * API base URL for fetch calls.
  *
  * Docker: use host.docker.internal to reach backend from frontend container.
- * Vite dev: set VITE_API_BASE_URL=http://localhost:8000 or use vite proxy with empty base.
+ * Vite dev: set VITE_API_BASE_URL=http://localhost:8001 or use vite proxy with empty base.
  */
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -17,7 +17,7 @@ export function websocketUrl(
 ): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   const origin =
-    API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8000");
+    API_BASE || (typeof window !== "undefined" ? window.location.origin : "http://localhost:8001");
   const url = new URL(normalized, origin);
 
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

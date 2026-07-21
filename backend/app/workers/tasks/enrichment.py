@@ -21,12 +21,17 @@ LIFECYCLE_STATES = frozenset(
 @celery_app.task(
     name="app.workers.tasks.enrichment.run_enrichment_job",
     bind=True,
-    max_retries=3,
-    default_retry_delay=30,
+    autoretry_for=(ValueError,),
+    retry_kwargs={"max_retries": 5, "countdown": 2},
+    exponential_backoff=True,
 )
 def run_enrichment_job(self, job_id: str) -> dict:
     bind_context(enrichment_job_id=job_id, stage="enrichment_provider")
     jid = UUID(job_id)
+
+    with get_sync_db() as session:
+        if session.get(EnrichmentJob, jid) is None:
+            raise ValueError(f"Enrichment job {job_id} not found")
 
     with get_sync_db() as session:
         job = session.get(EnrichmentJob, jid)

@@ -8,17 +8,15 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.mixins import TenantMixin
 
 
-class AlertIOC(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class AlertIOC(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
     __tablename__ = "alert_iocs"
     __table_args__ = (
         UniqueConstraint("tenant_id", "alert_id", "ioc_type", "ioc_value", name="uq_alert_iocs"),
     )
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
-    )
     alert_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("normalized_alerts.id", ondelete="CASCADE"),

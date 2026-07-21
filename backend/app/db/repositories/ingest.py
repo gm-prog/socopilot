@@ -93,7 +93,7 @@ class IngestRepository:
       duplicate_count=1,
       tags=[],
     )
-    alert.embedding = get_embedding(alert.description)
+    alert.embedding = get_embedding(alert.description or "")
     self.session.add(alert)
     self.session.flush()
     return alert

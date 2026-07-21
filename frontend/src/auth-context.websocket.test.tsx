@@ -1,5 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { useAlertsStream } from "./hooks/useAlertsStream";
@@ -27,7 +27,8 @@ function AuthStatusTracker({ onStatus }: { onStatus: (status: string) => void })
 }
 
 function AlertsStreamWatcher({ enabled = true }: { enabled?: boolean }) {
-    const { isConnected, refetch } = useAlertsStream({ enabled, maxQueueSize: 10 });
+    const streamOptions = useMemo(() => ({ enabled, maxQueueSize: 10 }), [enabled]);
+    const { isConnected, refetch } = useAlertsStream(streamOptions);
     return (
         <div>
             <span data-testid="ws-connected">{isConnected ? "yes" : "no"}</span>
@@ -62,6 +63,36 @@ describe("SOCopilot auth and websocket resilience", () => {
         cleanup();
         vi.useRealTimers();
         vi.restoreAllMocks();
+    });
+
+    it("renders safely when the hook receives inline options", async () => {
+        const token = createExpiringJwt(3600);
+        window.localStorage.setItem("socopilot_access_token", token);
+        const fetchMock = createFetchMock([
+            {
+                matcher: (url) => url.endsWith("/api/v1/auth/me"),
+                handler: async () => createResponse({ id: "user-1", email: "test@example.com", role: "analyst", tenant_id: "tenant-1" }),
+            },
+        ]);
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        function InlineOptionsWatcher() {
+            const { isConnected } = useAlertsStream({ enabled: true, maxQueueSize: 10 });
+            return <span data-testid="inline-options-status">{isConnected ? "yes" : "no"}</span>;
+        }
+
+        expect(() => {
+            render(
+                <AuthProvider>
+                    <InlineOptionsWatcher />
+                </AuthProvider>,
+            );
+        }).not.toThrow();
+
+        await waitFor(() => expect(screen.getByTestId("inline-options-status").textContent).toBe("no"));
+        expect(consoleErrorSpy).not.toHaveBeenCalledWith(expect.stringContaining("Maximum update depth exceeded"));
     });
 
     it("restores session on startup from a valid persisted token", async () => {
@@ -129,6 +160,33 @@ describe("SOCopilot auth and websocket resilience", () => {
         await waitFor(() => expect(screen.getByTestId("auth-status").textContent).toBe("authenticated"));
         expect(fetchSequence).toHaveBeenCalled();
         expect(window.localStorage.getItem("socopilot_access_token")).toBe(refreshedToken);
+    });
+
+    it("shares a single websocket across multiple hook consumers", async () => {
+        const token = createExpiringJwt(3600);
+        window.localStorage.setItem("socopilot_access_token", token);
+        const fetchMock = createFetchMock([
+            {
+                matcher: (url) => url.endsWith("/api/v1/auth/me"),
+                handler: async () => createResponse({ id: "user-1", email: "test@example.com", role: "analyst", tenant_id: "tenant-1" }),
+            },
+        ]);
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        function MultiConsumer() {
+            const { isConnected } = useAlertsStream({ enabled: true, maxQueueSize: 10 });
+            return <span data-testid="multi-consumer-status">{isConnected ? "yes" : "no"}</span>;
+        }
+
+        render(
+            <AuthProvider>
+                <MultiConsumer />
+                <MultiConsumer />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => expect(screen.getAllByTestId("multi-consumer-status").length).toBe(2));
+        await waitFor(() => expect(server.activeConnections).toBe(1));
     });
 
     it("does not open websocket before auth is restored and recovers stale corrupted storage", async () => {

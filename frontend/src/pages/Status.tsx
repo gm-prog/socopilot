@@ -57,13 +57,13 @@ export default function Status() {
             </tr>
           </thead>
           <tbody>
-            {ready?.checks.map((c) => (
-              <tr key={c.name} className="border-b border-heritage-goldBorder/10 last:border-0">
-                <td className="px-6 py-3 font-mono text-heritage-text">{c.name}</td>
+            {Object.entries(ready?.checks || {}).map(([name, status]) => (
+              <tr key={name} className="border-b border-heritage-goldBorder/10 last:border-0">
+                <td className="px-6 py-3 font-mono text-heritage-text">{name}</td>
                 <td className="px-6 py-3">
-                  <StatusBadge status={c.status} />
+                  <StatusBadge status={status} />
                 </td>
-                <td className="px-6 py-3 text-heritage-muted text-xs font-sans tracking-wide">{c.detail || "—"}</td>
+                <td className="px-6 py-3 text-heritage-muted text-xs font-sans tracking-wide">—</td>
               </tr>
             ))}
             {!ready && (

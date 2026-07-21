@@ -15,10 +15,13 @@ import { mapAlertToFeedItem } from "../store/feedUtils";
  * Zustand-backed real-time alert architecture — no prop drilling.
  */
 export default function OperationalDashboard() {
-  const { isConnected, error, isLoading } = useAlertsStream({
+  // 🟢 Stabilize the stream configuration to prevent infinite re-render loops
+  const streamOptions = useMemo(() => ({
     maxQueueSize: 100,
     enabled: true,
-  });
+  }), []);
+
+  const { isConnected, error, isLoading } = useAlertsStream(streamOptions);
 
   const alerts = useAlertStore((state) => state.alerts);
   const feedLength = useMemo(

@@ -11,7 +11,7 @@ from app.enrichment.providers.base import EnrichmentProvider, ProviderResult
 
 class AbuseIPDBProvider(EnrichmentProvider):
     name = "abuseipdb"
-    supported_ioc_types = {"ipv4", "ipv6"}
+    supported_ioc_types = {"ipv4", "ipv6", "ip"}
 
     def enrich(self, ioc_type: str, ioc_value: str) -> ProviderResult:
         settings = get_settings()

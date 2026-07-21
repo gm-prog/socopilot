@@ -8,14 +8,12 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.mixins import TenantMixin
 
 
-class EnrichmentJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class EnrichmentJob(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
     __tablename__ = "enrichment_jobs"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
-    )
     alert_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("normalized_alerts.id", ondelete="CASCADE"),
@@ -32,7 +30,7 @@ class EnrichmentJob(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class EnrichmentResult(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class EnrichmentResult(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
     __tablename__ = "enrichment_results"
 
     job_id: Mapped[uuid.UUID] = mapped_column(
@@ -40,9 +38,6 @@ class EnrichmentResult(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ForeignKey("enrichment_jobs.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
     alert_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

@@ -1,47 +1,178 @@
 services:
+
   postgres:
     image: pgvector/pgvector:pg16
-    volumes:
-      - ./docker/init:/docker-entrypoint-initdb.d
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: socopilot
+    container_name: postgres
     ports:
       - "5432:5432"
+    environment:
+      POSTGRES_USER: socopilot
+      POSTGRES_PASSWORD: socopilot_dev
+      POSTGRES_DB: socopilot
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d socopilot"]
+      test: [ "CMD-SHELL", "pg_isready -U socopilot -d socopilot" ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 20
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
 
   api:
-    environment:
-      REDIS_HOST: redis
     build:
       context: ..
       dockerfile: docker/images/api.Dockerfile
+    container_name: api
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      PYTHONPATH: /app
+
+      DATABASE_URL: postgresql+asyncpg://socopilot:socopilot_dev@postgres:5432/socopilot
+
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+      OLLAMA_HOST: http://ollama:11434
+
+      TORCHINDUCTOR_CACHE_DIR: /tmp/torch_cache
+      HF_HOME: /tmp/hf_cache
+      TRANSFORMERS_CACHE: /tmp/hf_cache
+
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
 
-  redis:
-    image: redis:7-alpine
-  opensearch:
-    image: opensearchproject/opensearch:2.11.1
-  ollama:
-    image: ollama/ollama:latest
-  worker:
+    restart: unless-stopped
+
+  worker-ingest:
     build:
       context: ..
-      dockerfile: docker/images/api.Dockerfile
-    command: celery -A app.worker worker
+      dockerfile: docker/images/worker.Dockerfile
+    command: celery -A app.workers.celery_app:celery_app worker -Q ingest --loglevel=info --concurrency=8
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://socopilot:socopilot_dev@postgres:5432/socopilot
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      OLLAMA_HOST: http://ollama:11434
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
+  worker-processing:
+    build:
+      context: ..
+      dockerfile: docker/images/worker.Dockerfile
+    command: celery -A app.workers.celery_app:celery_app worker -Q processing --loglevel=info --concurrency=4
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://socopilot:socopilot_dev@postgres:5432/socopilot
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      OLLAMA_HOST: http://ollama:11434
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
+  worker-enrichment:
+    build:
+      context: ..
+      dockerfile: docker/images/worker.Dockerfile
+    command: celery -A app.workers.celery_app:celery_app worker -Q enrichment --loglevel=info --concurrency=2
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://socopilot:socopilot_dev@postgres:5432/socopilot
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      OLLAMA_HOST: http://ollama:11434
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
   celery-beat:
     build:
       context: ..
-      dockerfile: docker/images/api.Dockerfile
-    command: celery -A app.worker beat
+      dockerfile: docker/images/worker.Dockerfile
+    command: celery -A app.workers.celery_app:celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://socopilot:socopilot_dev@postgres:5432/socopilot
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      OLLAMA_HOST: http://ollama:11434
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+    restart: unless-stopped
+
+    volumes:
+      - /tmp:/tmp
+
+volumes:
+  ollama_data:

@@ -103,7 +103,6 @@ def upgrade() -> None:
         sa.Column("retry_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("status", sa.String(50), server_default="open", nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["alert_id"], ["normalized_alerts.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["raw_event_id"], ["raw_events.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

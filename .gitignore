@@ -1,3 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.env.local
+*.log
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Docker
+*.pid
+
+# Data
+data/mitre/*.json
+!data/mitre/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Additional recommended ignores appended by infra cleanup
 # Python / backend
 .venv/
 venv/
@@ -21,7 +62,30 @@ npm-debug.log*
 yarn-error.log
 pnpm-lock.yaml
 
-# Runtime auth tokens & local secrets
+# Docker / local
+docker-compose.override.yml
+docker/init/
+*.env
+
+# Editors / IDEs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & misc
+*.log
+*.swo
+*.swp
+
+.soc_token
+frontend/public/token.txt
+login.json
+
+.soc_token
+login.json
+
 .soc_token
 login.json
 frontend/public/token.txt

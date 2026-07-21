@@ -1,6 +1,2 @@
 
 repomix-output.xml
-
-# Runtime auth tokens — never commit
-public/token.txt
-.soc_token

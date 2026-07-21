@@ -16,7 +16,7 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    op.add_column('normalized_alerts', sa.Column('embedding', Vector(768), nullable=True))
+    op.add_column('normalized_alerts', sa.Column('embedding', Vector(384), nullable=True))
 
 def downgrade():
     op.drop_column('normalized_alerts', 'embedding')

@@ -52,6 +52,32 @@ function normalizeHeaders(headers: HeadersInit | undefined): Record<string, stri
   return Object.fromEntries(Object.entries(headers) as [string, string][]);
 }
 
+function getRequestUrl(input: RequestInfo): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+}
+
+function handleRefreshRouteUnauthorized(input: RequestInfo): void {
+  const requestUrl = getRequestUrl(input);
+  if (!requestUrl.includes("/auth/refresh")) {
+    return;
+  }
+
+  try {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  } catch {
+    // ignore storage failures
+  }
+
+  window.location.href = "/login";
+}
+
 export function getStoredAccessToken(): string | null {
   if (!isBrowser) return null;
   try {
@@ -129,6 +155,7 @@ export async function refreshAccessToken(): Promise<string | null> {
       });
 
       if (!response.ok) {
+        handleRefreshRouteUnauthorized(apiUrl("/api/v1/auth/refresh"));
         return null;
       }
 
@@ -233,6 +260,11 @@ export async function fetchWithAuth(
     credentials: "include",
     headers,
   });
+
+  if (response.status === 401 && getRequestUrl(input).includes("/auth/refresh")) {
+    handleRefreshRouteUnauthorized(input);
+    return response;
+  }
 
   if (response.status !== 401 || options.retry === false) {
     return response;

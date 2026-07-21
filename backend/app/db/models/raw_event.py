@@ -1,24 +1,23 @@
-"""Raw SIEM event storage."""
+"""Raw SIEM event storage with global tenant isolation capabilities."""
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.mixins import TenantMixin
 
 
-class RawEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+class RawEvent(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
+    """
+    Stores raw, incoming events from diverse SIEM agents and endpoints.
+    Inherits from TenantMixin to automatically enforce multi-tenant compile boundaries.
+    """
     __tablename__ = "raw_events"
 
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     correlation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     source_label: Mapped[str] = mapped_column(String(100), nullable=False, default="webhook")
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)

@@ -7,6 +7,7 @@ from app.workers.tasks.phase2 import (
     dispatch_enrichment_jobs,
     extract_iocs_task,
     generate_alert_embedding,
+    generate_copilot_summary_task,
     index_alert_opensearch,
 )
 
@@ -18,7 +19,7 @@ def dispatch_post_ingest_pipeline(
     raw_event_id: str | None = None,
 ) -> None:
     """
-    After persist: extract IOCs -> dispatch enrichment.
+    After persist: extract IOCs -> dispatch enrichment -> generate AI summary.
     Parallel: OpenSearch index + embedding (non-blocking).
     """
     header = {
@@ -30,6 +31,7 @@ def dispatch_post_ingest_pipeline(
     main_chain = chain(
         extract_iocs_task.s(header),
         dispatch_enrichment_jobs.s(),
+        generate_copilot_summary_task.s(),
     )
     parallel = group(
         index_alert_opensearch.s(header),

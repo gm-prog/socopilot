@@ -1563,3 +1563,11 @@ tr.sel .act-wrap {
     pointer-events: none;
     font-family: var(--ff-ui)
 }
+/* Force interactivity for sidebar buttons and modal */
+.sidebar, .sb-btn {
+    pointer-events: auto !important;
+}
+
+.fixed.z-\[1000\] {
+    pointer-events: auto !important;
+}

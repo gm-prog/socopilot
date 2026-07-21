@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useAlertStore } from "../store/alertStore";
-import { formatStateLabel } from "../utils/alertUtils";
 import EnrichmentBadge from "./EnrichmentBadge";
 import { EliteCard } from "./EliteCard";
 
@@ -91,7 +90,7 @@ export default function AlertDetailDrawer() {
                       {alert.severity}
                     </span>
                     <span className="rounded-full border px-3 py-1 text-xs uppercase tracking-[0.32em] text-heritage-muted border-heritage-goldBorder/30 bg-heritage-ink/70">
-                      {formatStateLabel(alert.lifecycle_state)}
+                      {alert.lifecycle_state.replace("_", " ")}
                     </span>
                     {alert.duplicate_count > 1 && (
                       <span className="text-xs uppercase tracking-[0.28em] text-heritage-gold">
@@ -152,7 +151,7 @@ export default function AlertDetailDrawer() {
                           : "border border-heritage-goldBorder/25 text-heritage-muted hover:border-heritage-gold/50 hover:text-heritage-text"
                       }`}
                     >
-                      {formatStateLabel(s)}
+                      {s.replace("_", " ")}
                     </button>
                   ))}
                 </div>

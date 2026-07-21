@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.logging import bind_context, get_logger
 from app.db.repositories.ingest import IngestRepository
@@ -200,11 +201,22 @@ def process_ingest_event(self, event: dict[str, Any]) -> dict[str, Any]:
     return run_process_ingest_event(event)
 
 
-@celery_app.task(name="app.workers.tasks.ingest.normalize_raw_event", bind=True)
+@celery_app.task(
+    name="app.workers.tasks.ingest.normalize_raw_event",
+    bind=True,
+    autoretry_for=(ValueError,),
+    retry_kwargs={"max_retries": 5, "countdown": 2},
+    exponential_backoff=True,
+)
 def normalize_raw_event(self, raw_event_id: str, correlation_id: str) -> dict[str, Any]:
     """Load raw event and produce canonical alert dict."""
     bind_context(correlation_id=correlation_id, raw_event_id=raw_event_id, stage="normalize")
     normalizer = AlertNormalizer()
+
+    with get_sync_db() as session:
+        repo = IngestRepository(session)
+        if repo.get_raw_event(UUID(raw_event_id)) is None:
+            raise ValueError(f"Raw event {raw_event_id} not found")
 
     with get_sync_db() as session:
         repo = IngestRepository(session)
@@ -279,9 +291,18 @@ def dedup_alert(pipeline_data: dict[str, Any]) -> dict[str, Any]:
         return pipeline_data
 
 
-@celery_app.task(name="app.workers.tasks.ingest.persist_alert")
-def persist_alert(pipeline_data: dict[str, Any]) -> dict[str, Any]:
-    """Persist normalized alert or increment duplicate counter."""
+@celery_app.task(
+    name="app.workers.tasks.ingest.persist_alert",
+    bind=True,
+    time_limit=300,
+    autoretry_for=("sqlalchemy.exc.SQLAlchemyError",), # String reference
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+    max_retries=3
+)
+def persist_alert(self, pipeline_data: dict[str, Any]) -> dict[str, Any]:
+    """Persist normalized alert with resilience decorators."""
     correlation_id = pipeline_data["correlation_id"]
     raw_event_id = UUID(pipeline_data["raw_event_id"])
     bind_context(correlation_id=correlation_id, raw_event_id=str(raw_event_id), stage="persist")
@@ -317,6 +338,7 @@ def persist_alert(pipeline_data: dict[str, Any]) -> dict[str, Any]:
             )
             repo.update_raw_event_status(raw, "completed")
             session.flush()
+            
             from app.core.metrics import DEDUP_CREATES, DEDUP_HITS
             from app.pipelines.post_ingest import dispatch_post_ingest_pipeline
 
@@ -325,25 +347,11 @@ def persist_alert(pipeline_data: dict[str, Any]) -> dict[str, Any]:
             else:
                 DEDUP_CREATES.inc()
 
-            logger.info(
-                "alert_persisted",
-                alert_id=str(alert.id),
-                action=dedup.action,
-                duplicate_count=alert.duplicate_count,
-            )
-
             alert_summary = serialize_alert_summary(alert)
             session.commit()
 
             if dedup.action != "duplicate":
                 publish_new_alert(tenant_id=tenant_id, alert=alert_summary)
-            else:
-                logger.info(
-                    "alert_duplicate_filtered",
-                    alert_id=str(alert.id),
-                    tenant_id=str(tenant_id),
-                    duplicate_count=alert.duplicate_count,
-                )
 
             dispatch_post_ingest_pipeline(
                 alert_id=str(alert.id),
@@ -356,9 +364,6 @@ def persist_alert(pipeline_data: dict[str, Any]) -> dict[str, Any]:
                 "alert_id": str(alert.id),
                 "action": dedup.action,
                 "duplicate_count": alert.duplicate_count,
-                "correlation_id": correlation_id,
-                "tenant_id": str(tenant_id),
-                "raw_event_id": str(raw_event_id),
             }
         except Exception as exc:
             repo.update_raw_event_status(raw, "failed", error=str(exc))

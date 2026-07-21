@@ -4,6 +4,10 @@ import { reportValidationError } from "./reportValidationError";
 import { useValidationStore } from "../../store/validationStore";
 
 export function parseWebSocketAlertFrame(raw: string): AlertSummary | null {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return null;
+  }
+
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -12,6 +16,16 @@ export function parseWebSocketAlertFrame(raw: string): AlertSummary | null {
     reportValidationError({
       source: "websocket",
       message: "Malformed JSON in WebSocket frame",
+      rawPreview: raw.slice(0, 200),
+    });
+    return null;
+  }
+
+  if (!json || typeof json !== "object") {
+    useValidationStore.getState().incrementDroppedPackets();
+    reportValidationError({
+      source: "websocket",
+      message: "WebSocket frame payload was not a JSON object",
       rawPreview: raw.slice(0, 200),
     });
     return null;

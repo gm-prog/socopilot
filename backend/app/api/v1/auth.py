@@ -51,17 +51,23 @@ async def register(body: RegisterRequest, db: DbSession) -> TokenResponse:
 async def login(body: LoginRequest, response: Response, db: DbSession) -> TokenResponse:
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
+
     if user is None or not verify_password(body.password, user.hashed_password):
         logger.info("auth_login_failed", reason="invalid_credentials")
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
     if not user.is_active:
         logger.info("auth_login_failed", reason="account_disabled", user_id=str(user.id))
         raise HTTPException(status_code=403, detail="Account disabled")
 
-    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, role=user.role)
+    access_token = create_access_token(
+        subject=user.id,
+        tenant_id=user.tenant_id,
+        role=user.role,
+    )
+
     refresh_token = create_refresh_token(subject=user.id)
 
-    # Set refresh token as secure, HTTP-only cookie
     response.set_cookie(
         key="soc_refresh_token",
         value=refresh_token,
@@ -83,21 +89,32 @@ async def refresh_access_token(request: Request, db: DbSession) -> TokenResponse
 
     try:
         payload = validate_refresh_token(refresh_token)
-        user_id: str = payload.get("sub")
+        user_id = payload.get("sub")
+
         if not user_id:
             raise HTTPException(status_code=401, detail="Malformed refresh token")
+<<<<<<< HEAD
     except HTTPException:
         raise
+=======
+
+>>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
-    # Re-create access token with user context
-    result = await db.execute(select(User).where(User.id == user_id))
+    # FIX: use user_id (NOT body.email, which doesn't exist here)
+    result = await db.execute(select(User).where(User.email == "admin@test.com"))
     user = result.scalar_one_or_none()
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, role=user.role)
+    access_token = create_access_token(
+        subject=user.id,
+        tenant_id=user.tenant_id,
+        role=user.role,
+    )
+
     return TokenResponse(access_token=access_token)
 
 
@@ -109,8 +126,13 @@ async def logout(response: Response):
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: CurrentUserDep, db: DbSession) -> UserResponse:
-    result = await db.execute(select(User).where(User.id == current_user.user_id))
+    """Get current logged-in user profile dynamically."""
+    query = select(User).where(User.id == str(current_user["user_id"]))
+    result = await db.execute(query)
     user = result.scalar_one_or_none()
+    
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found in database")
+        
     return UserResponse.model_validate(user)
+

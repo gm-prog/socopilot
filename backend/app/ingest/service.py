@@ -1,5 +1,3 @@
-"""Ingest orchestration — raw event storage and pipeline dispatch."""
-
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -27,6 +25,7 @@ class IngestService:
         client_ip: str | None = None,
         source_label: str = "webhook",
     ) -> IngestItemResponse:
+<<<<<<< HEAD
         bind_context(
             correlation_id=correlation_id,
             tenant_id=str(tenant_id),
@@ -76,9 +75,94 @@ class IngestService:
             raw_event_id=raw_event.id,
             correlation_id=correlation_id,
             pipeline_task_id=task.id,
+=======
+
+        bind_context(
+            correlation_id=correlation_id,
+            tenant_id=str(tenant_id),
+        )
+
+        # =========================================================
+        # 1. CREATE DB RECORD
+        # =========================================================
+        raw_event = RawEvent(
+            tenant_id=tenant_id,
+            correlation_id=correlation_id,
+            source_label=source_label,
+            payload={
+                "raw": payload,
+                "parsed": alert.model_dump(mode="json"),
+            },
+            status="received",
+            client_ip=client_ip,
+        )
+
+        self.db.add(raw_event)
+        await self.db.flush()
+
+        bind_context(raw_event_id=str(raw_event.id))
+        logger.info("raw_event_stored", status="received")
+
+        # =========================================================
+        # 2. COMMIT FIRST (SOURCE OF TRUTH)
+        # =========================================================
+        await self.db.commit()
+
+        # =========================================================
+        # 3. ENQUEUE CELERY (AFTER SAFE PERSISTENCE)
+        # =========================================================
+        task = None
+
+        try:
+            envelope = {
+                "tenant_id": str(tenant_id),
+                "raw_event_id": str(raw_event.id),
+                "correlation_id": correlation_id,
+                "event": {
+                    "source": source_label,
+                    "event_type": alert.title,
+                    "timestamp": alert.detected_at.isoformat() if alert.detected_at else None,
+                    "payload": alert.model_dump(mode="json"),
+                },
+            }
+
+            task = process_ingest_event.delay(envelope)
+
+            raw_event.celery_task_id = task.id
+            raw_event.status = "queued"
+
+            await self.db.commit()
+
+            logger.info(
+                "ingest_pipeline_queued",
+                celery_task_id=task.id,
+                raw_event_id=str(raw_event.id),
+            )
+
+        except Exception as exc:
+            # IMPORTANT: DB already safe, Celery failure is non-fatal
+            logger.error(
+                "celery_enqueue_failed",
+                error=str(exc),
+                raw_event_id=str(raw_event.id),
+            )
+
+            # mark as pending retry
+            raw_event.status = "enqueue_failed"
+            await self.db.commit()
+
+        return IngestItemResponse(
+            raw_event_id=raw_event.id,
+            correlation_id=correlation_id,
+            pipeline_task_id=task.id if task else None,
+>>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)
             status="accepted",
         )
 
     @staticmethod
     def new_correlation_id(header_value: str | None = None) -> str:
+<<<<<<< HEAD
         return header_value or str(uuid4())
+=======
+        return header_value or str(uuid4())
+>>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)

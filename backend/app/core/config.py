@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost", alias="REDIS_HOST")
     redis_port: int = Field(default=6379, alias="REDIS_PORT")
     redis_db: int = Field(default=0, alias="REDIS_DB")
+    redis_url_override: str | None = Field(default=None, alias="REDIS_URL")
 
     celery_broker_url: str | None = Field(default=None, alias="CELERY_BROKER_URL")
     celery_result_backend: str | None = Field(default=None, alias="CELERY_RESULT_BACKEND")
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     ollama_embed_model: str = Field(default="nomic-embed-text", alias="OLLAMA_EMBED_MODEL")
 
     elasticsearch_enabled: bool = Field(default=False, alias="ELASTICSEARCH_ENABLED")
-    elasticsearch_url: str = Field(default="http://localhost:9200", alias="ELASTICSEARCH_URL")
+    elasticsearch_url: str = Field(default="http://opensearch:9200", alias="ELASTICSEARCH_URL")
     opensearch_enabled: bool = Field(default=False, alias="OPENSEARCH_ENABLED")
     opensearch_url: str = Field(default="http://opensearch:9200", alias="OPENSEARCH_URL")
     opensearch_index_alerts: str = Field(default="socopilot-alerts", alias="OPENSEARCH_INDEX_ALERTS")
@@ -150,6 +151,8 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def redis_url(self) -> str:
+        if self.redis_url_override:
+            return self.redis_url_override
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @computed_field

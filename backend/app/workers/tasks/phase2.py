@@ -1,30 +1,26 @@
-"""Phase 2 Celery tasks — extraction, enrichment, indexing, embeddings."""
-
-import time
-from datetime import UTC, datetime
+import json
+import logging
 from typing import Any
 from uuid import UUID
 
-import httpx
-from sqlalchemy import select
+from structlog import contextvars
 
-from app.core.config import get_settings
-from app.core.logging import bind_context, get_logger
-from app.core.metrics import DLQ_ENTRIES, EMBEDDING_LATENCY, EXTRACTION_COUNT
-from app.db.models.alert_ioc import AlertIOC
-from app.db.models.normalized_alert import NormalizedAlert
-from app.db.models.raw_event import RawEvent
 from app.db.sync_session import get_sync_db
-from app.dlq.service import DLQService
-from app.enrichment.dispatcher import EnrichmentDispatcher
-from app.extraction.extractor import IOCExtractor
-from app.integrations.opensearch.client import OpenSearchClient
-from app.schemas.alerts import CanonicalAlertSchema
-from app.vector.store import VectorStore
-from app.workers.celery_app import celery_app
-from app.workers.tasks.enrichment import run_enrichment_job
+try:
+    from app.db.models.normalized_alert import NormalizedAlert
+except ImportError:
+    from app.models.alert import NormalizedAlert
 
-logger = get_logger(__name__)
+try:
+    from app.integrations.opensearch.client import OpenSearchClient
+except ImportError:
+    from app.integrations.opensearch import OpenSearchClient
+
+from app.workers.celery_app import celery_app
+from app.dlq.service import DLQService
+from app.core.metrics import DLQ_ENTRIES
+
+logger = logging.getLogger(__name__)
 
 
 def _record_dlq(session, header: dict, stage: str, error: str, payload: dict | None = None):
@@ -40,17 +36,54 @@ def _record_dlq(session, header: dict, stage: str, error: str, payload: dict | N
     DLQ_ENTRIES.labels(stage=stage).inc()
 
 
-@celery_app.task(name="app.workers.tasks.phase2.extract_iocs_task")
-def extract_iocs_task(header: dict[str, Any]) -> dict[str, Any]:
-    bind_context(
-        correlation_id=header.get("correlation_id"),
-        alert_id=header.get("alert_id"),
-        stage="extraction",
-    )
-    alert_id = UUID(header["alert_id"])
-    tenant_id = UUID(header["tenant_id"])
+
+def bind_context(**kwargs):
+    for k, v in kwargs.items():
+        contextvars.bind_contextvars(**{k: v})
+
+
+@celery_app.task(
+    name='app.workers.tasks.phase2.index_alert_opensearch',
+    autoretry_for=(ValueError,),
+    retry_kwargs={'max_retries': 5, 'countdown': 2},
+    exponential_backoff=True,
+)
+def index_alert_opensearch(header: Any) -> dict[str, Any]:
+    # Defensive parsing for dict or raw str / stringified JSON
+    if isinstance(header, str):
+        try:
+            parsed = json.loads(header)
+            if isinstance(parsed, dict):
+                header = parsed
+            else:
+                header = {'alert_id': header}
+        except Exception:
+            header = {'alert_id': header}
+
+    raw_alert_id = header.get('alert_id') if isinstance(header, dict) else str(header)
+    bind_context(alert_id=raw_alert_id, stage='indexing')
+    alert_id = UUID(str(raw_alert_id))
+
+    # Fetch alert and construct doc payload inside active DB session context
+    with get_sync_db() as session:
+        alert = session.get(NormalizedAlert, alert_id)
+        if alert is None:
+            logger.warning(f'Alert {alert_id} not found in database')
+            raise ValueError(f'Alert {alert_id} not found in database (transient sync delay)')
+
+        doc = {
+            'tenant_id': str(alert.tenant_id),
+            'title': alert.title,
+            'description': alert.description,
+            'severity': alert.severity,
+            'source': alert.source,
+            'lifecycle_state': alert.lifecycle_state,
+            'detected_at': alert.detected_at.isoformat() if alert.detected_at else None,
+            'fingerprint': alert.fingerprint,
+        }
 
     try:
+<<<<<<< HEAD
         with get_sync_db() as session:
             alert = session.get(NormalizedAlert, alert_id)
             if alert is None:
@@ -206,3 +239,26 @@ def _embed_text(text: str, model: str) -> list[float] | None:
     except Exception as exc:
         logger.warning("ollama_embed_failed", model=model, error=str(exc))
         return None
+=======
+        client = OpenSearchClient()
+        if hasattr(client, 'ensure_indices'):
+            client.ensure_indices()
+        if hasattr(client, 'index_alert_sync'):
+            client.index_alert_sync(str(alert_id), doc)
+        elif hasattr(client, 'index_alert'):
+            client.index_alert(str(alert_id), doc)
+        logger.info(f'Successfully indexed alert {alert_id} into OpenSearch')
+        return header
+    except Exception as exc:
+        with get_sync_db() as session:
+            _record_dlq(
+                session,
+                header if isinstance(header, dict) else {'alert_id': raw_alert_id},
+                'indexing',
+                str(exc),
+                header if isinstance(header, dict) else {'alert_id': raw_alert_id},
+            )
+            session.commit()
+        logger.warning(f'indexing_failed: {exc}')
+        return header
+>>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)

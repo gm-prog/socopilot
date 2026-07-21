@@ -41,3 +41,38 @@ class OllamaClient:
     async def list_models(self) -> list[str]:
         result = await self.health_check()
         return result.get("models_available", [])
+
+    async def generate_text(self, prompt: str) -> str:
+        try:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                resp = await client.post(
+                    f"{self.base_url}/api/generate",
+                    json={
+                        "model": self.llm_model,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "")
+        except Exception as exc:
+            logger.error("ollama_generation_failed", error=str(exc))
+            raise
+
+    def generate_text_sync(self, prompt: str) -> str:
+        """Synchronous generation method for thread-safe Celery worker tasks."""
+        try:
+            with httpx.Client(timeout=300.0) as client:
+                resp = client.post(
+                    f"{self.base_url}/api/generate",
+                    json={
+                        "model": self.llm_model,
+                        "prompt": prompt,
+                        "stream": False
+                    }
+                )
+                resp.raise_for_status()
+                return resp.json().get("response", "")
+        except Exception as exc:
+            logger.error("ollama_generation_failed", error=str(exc))
+            raise

@@ -68,7 +68,7 @@ async def get_alert(
             AlertIOC.tenant_id == current_user.tenant_id,
         )
     )
-    iocs = [IOCResponse.model_validate(i).model_dump() for i in ioc_result.scalars().all()]
+    iocs = [IOCResponse.model_validate(i) for i in ioc_result.scalars().all()]
 
     detail = AlertDetail.model_validate(alert)
     detail.raw_payload = raw_payload

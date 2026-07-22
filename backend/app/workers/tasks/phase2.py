@@ -83,7 +83,6 @@ def index_alert_opensearch(header: Any) -> dict[str, Any]:
         }
 
     try:
-<<<<<<< HEAD
         with get_sync_db() as session:
             alert = session.get(NormalizedAlert, alert_id)
             if alert is None:
@@ -239,7 +238,6 @@ def _embed_text(text: str, model: str) -> list[float] | None:
     except Exception as exc:
         logger.warning("ollama_embed_failed", model=model, error=str(exc))
         return None
-=======
         client = OpenSearchClient()
         if hasattr(client, 'ensure_indices'):
             client.ensure_indices()
@@ -261,4 +259,3 @@ def _embed_text(text: str, model: str) -> list[float] | None:
             session.commit()
         logger.warning(f'indexing_failed: {exc}')
         return header
->>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)

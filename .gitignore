@@ -89,3 +89,15 @@ login.json
 .soc_token
 login.json
 frontend/public/token.txt
+
+# Developer Snapshots & Temp Backups
+backend/*.txt
+backend/*.xml
+backend/*.patch
+backend/socopilot/
+*.bak
+*.pre_fix
+*.before_rewrite
+*.final_backup
+*.pre_rebuild
+*.tar.gz

@@ -38,7 +38,7 @@ async def semantic_search(
         return SemanticSearchResponse(results=[], message="Embedding generation failed")
 
     # Pure async execution without run_sync deadlock
-    res = await db.execute(select(AlertEmbedding))
+    res = await db.execute(select(AlertEmbedding).where(AlertEmbedding.tenant_id == tenant_id))
     rows = res.scalars().all()
     
     scored = []
@@ -57,6 +57,8 @@ async def semantic_search(
     results: list[SemanticSearchResult] = []
     for alert_id, score in matches:
         alert = await db.get(NormalizedAlert, alert_id)
+        if alert and alert.tenant_id != tenant_id:
+            continue
         results.append(
             SemanticSearchResult(
                 alert_id=alert_id,

@@ -57,7 +57,7 @@ async def get_alert(
 
     raw_payload = None
     if alert.raw_event_id:
-        result = await db.execute(select(RawEvent).where(RawEvent.id == alert.raw_event_id))
+        result = await db.execute(select(RawEvent).where(RawEvent.id == alert.raw_event_id, RawEvent.tenant_id == current_user.tenant_id))
         raw = result.scalar_one_or_none()
         if raw:
             raw_payload = raw.payload

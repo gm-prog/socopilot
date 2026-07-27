@@ -45,15 +45,15 @@ async def ingest_event(
     try:
         return await service.queue_event(
             body=body,
-            tenant_id=current_user["tenant_id"],
-            user_id=current_user["user_id"],
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id if hasattr(current_user, "id") else getattr(current_user, "user_id"),
         )
 
     except ValueError as exc:
         logger.warning(
             "ingest_event_bad_request",
             error=str(exc),
-            tenant_id=str(current_user["tenant_id"]),
+            tenant_id=str(current_user.tenant_id),
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,7 +63,7 @@ async def ingest_event(
     except OperationalError as exc:
         logger.exception(
             "ingest_queue_unavailable",
-            tenant_id=str(current_user["tenant_id"]),
+            tenant_id=str(current_user.tenant_id),
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -74,7 +74,7 @@ async def ingest_event(
         logger.exception(
             "ingest_runtime_failure",
             error=str(exc),
-            tenant_id=str(current_user["tenant_id"]),
+            tenant_id=str(current_user.tenant_id),
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -86,7 +86,7 @@ async def ingest_event(
             "ingest_queue_failed",
             error=str(exc),
             exception_type=type(exc).__name__,
-            tenant_id=str(current_user["tenant_id"]),
+            tenant_id=str(current_user.tenant_id),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -154,7 +154,7 @@ async def ingest_alerts(
 
     for alert in alerts:
         item = await service.accept_alert(
-            tenant_id=current_user["tenant_id"],
+            tenant_id=current_user.tenant_id,
             correlation_id=correlation_id,
             payload=body if isinstance(body, dict) else {"alerts": body},
             alert=alert,
@@ -166,7 +166,7 @@ async def ingest_alerts(
         "ingest_accepted",
         count=len(items),
         correlation_id=correlation_id,
-        tenant_id=str(current_user["tenant_id"]),
+        tenant_id=str(current_user.tenant_id),
     )
 
     return IngestAlertsResponse(
@@ -186,7 +186,7 @@ async def ingest_document(
     file_bytes = await file.read()
     filename = file.filename or "unknown.txt"
     task = parse_and_chunk_document_task.delay(
-        tenant_id=str(current_user["tenant_id"]),
+        tenant_id=str(current_user.tenant_id),
         filename=filename,
         file_bytes=file_bytes.hex()
     )

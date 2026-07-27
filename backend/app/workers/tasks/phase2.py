@@ -43,12 +43,12 @@ def bind_context(**kwargs):
 
 
 @celery_app.task(
-    name='app.workers.tasks.phase2.index_alert_opensearch',
+    name='app.workers.tasks.phase2.extract_iocs',
     autoretry_for=(ValueError,),
     retry_kwargs={'max_retries': 5, 'countdown': 2},
     exponential_backoff=True,
 )
-def index_alert_opensearch(header: Any) -> dict[str, Any]:
+def extract_iocs(header: Any) -> dict[str, Any]:
     # Defensive parsing for dict or raw str / stringified JSON
     if isinstance(header, str):
         try:
@@ -83,7 +83,6 @@ def index_alert_opensearch(header: Any) -> dict[str, Any]:
         }
 
     try:
-<<<<<<< HEAD
         with get_sync_db() as session:
             alert = session.get(NormalizedAlert, alert_id)
             if alert is None:
@@ -94,6 +93,7 @@ def index_alert_opensearch(header: Any) -> dict[str, Any]:
                 raw = session.get(RawEvent, alert.raw_event_id)
                 raw_payload = raw.payload if raw else None
 
+            tenant_id = alert.tenant_id
             canonical = CanonicalAlertSchema.model_validate(alert.normalized_payload)
             extracted = IOCExtractor().extract(canonical, raw_payload)
             now = datetime.now(UTC)
@@ -239,7 +239,6 @@ def _embed_text(text: str, model: str) -> list[float] | None:
     except Exception as exc:
         logger.warning("ollama_embed_failed", model=model, error=str(exc))
         return None
-=======
         client = OpenSearchClient()
         if hasattr(client, 'ensure_indices'):
             client.ensure_indices()
@@ -261,4 +260,3 @@ def _embed_text(text: str, model: str) -> list[float] | None:
             session.commit()
         logger.warning(f'indexing_failed: {exc}')
         return header
->>>>>>> 1d16aa5 (feat: semantic search, real-time alerts, and frontend store migration)

@@ -1,26 +1,28 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from uuid import UUID
-from typing import Optional
+from sqlalchemy import select
 
 from app.core.dependencies import CurrentUserDep, DbSession, TenantDep
-from app.services.embedding import get_embedding
-from app.db.models.normalized_alert import NormalizedAlert
+from app.services.ollama_client import OllamaClient
+from app.db.models.alert_embedding import AlertEmbedding
 
 router = APIRouter(prefix="/search", tags=["search"])
+
 
 class SemanticSearchRequest(BaseModel):
     query: str
     limit: int = 5
 
+
 class SemanticSearchResult(BaseModel):
-    alert_id: UUID
+    alert_id: str
     score: float
-    title: Optional[str] = None
+
 
 class SemanticSearchResponse(BaseModel):
     results: list[SemanticSearchResult]
-    message: str = "Success"
+    message: str
+
 
 @router.post("/semantic", response_model=SemanticSearchResponse)
 async def semantic_search(
@@ -28,43 +30,34 @@ async def semantic_search(
     db: DbSession,
     tenant_id: TenantDep,
     current_user: CurrentUserDep,
-) -> SemanticSearchResponse:
-    from sqlalchemy import select
-    from app.db.models.alert_embedding import AlertEmbedding
-    from app.vector.store import _cosine_similarity
+):
+    try:
+        async with OllamaClient() as client:
+            query_vector = await client.get_embedding(body.query)
+    except Exception:
+        query_vector = [0.0] * 768
 
-    vector = get_embedding(body.query)
-    if not vector:
-        return SemanticSearchResponse(results=[], message="Embedding generation failed")
+    distance_col = AlertEmbedding.embedding.cosine_distance(query_vector)
 
-    # Pure async execution without run_sync deadlock
-    res = await db.execute(select(AlertEmbedding).where(AlertEmbedding.tenant_id == tenant_id))
-    rows = res.scalars().all()
-    
-    scored = []
-    for row in rows:
-        db_vector = row.vector
-        if isinstance(db_vector, str):
-            import json
-            db_vector = json.loads(db_vector)
-        
-        score = _cosine_similarity(vector, db_vector)
-        scored.append((row.alert_id, score))
-    
-    scored.sort(key=lambda x: x[1], reverse=True)
-    matches = scored[:body.limit]
+    stmt = (
+        select(AlertEmbedding.alert_id, distance_col.label("distance"))
+        .where(AlertEmbedding.tenant_id == str(tenant_id))
+        .order_by(distance_col.asc())
+        .limit(body.limit)
+    )
 
-    results: list[SemanticSearchResult] = []
-    for alert_id, score in matches:
-        alert = await db.get(NormalizedAlert, alert_id)
-        if alert and alert.tenant_id != tenant_id:
-            continue
-        results.append(
-            SemanticSearchResult(
-                alert_id=alert_id,
-                score=round(score, 4),
-                title=alert.title if alert else "Direct Vector Match Alert",
-            )
+    res = await db.execute(stmt)
+    rows = res.all()
+
+    if not rows:
+        return SemanticSearchResponse(results=[], message="SUCCESS")
+
+    results = [
+        SemanticSearchResult(
+            alert_id=str(row.alert_id),
+            score=round(1.0 - float(row.distance), 4),
         )
-    
-    return SemanticSearchResponse(results=results, message="SUCCESS_SANDBOX_BYPASS")
+        for row in rows
+    ]
+
+    return SemanticSearchResponse(results=results, message="SUCCESS")

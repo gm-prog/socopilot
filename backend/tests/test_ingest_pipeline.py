@@ -82,3 +82,25 @@ def test_unknown_source_increases_severity():
     iocs = extract_iocs(normalized["payload"])
     severity = calculate_severity(normalized, iocs)
     assert severity >= 4
+
+
+# ==========================================
+# Additional Ingest Pipeline Branch Tests
+# ==========================================
+
+
+# ==========================================
+# Ingest Pipeline Task Tests
+# ==========================================
+def test_ingest_pipeline_exports_and_chunking():
+    """Test text chunking utility exported by ingest_pipeline."""
+    from app.workers.tasks.ingest_pipeline import chunk_text_sliding_window
+    
+    text = "SOCopilot ingestion pipeline raw log line for verification test."
+    chunks = chunk_text_sliding_window(text, max_chars=20, overlap=5)
+    assert len(chunks) > 0
+
+def test_process_alert_signature(mock_db_session):
+    """Verify process_alert task is callable."""
+    from app.workers.tasks.ingest_pipeline import process_alert
+    assert callable(process_alert)

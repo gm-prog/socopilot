@@ -1,8 +1,6 @@
-"""PostgreSQL-backed vector store (Qdrant-ready abstraction)."""
+"""PostgreSQL-backed vector store using pgvector native operations."""
 
-import math
 from uuid import UUID
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,7 +8,7 @@ from app.db.models.alert_embedding import AlertEmbedding
 
 
 class VectorStore:
-    """Store and retrieve embeddings — stub semantic search via cosine similarity."""
+    """Store and retrieve 768-dimensional embeddings via pgvector."""
 
     def upsert(
         self,
@@ -18,24 +16,22 @@ class VectorStore:
         *,
         tenant_id: UUID,
         alert_id: UUID,
-        model_name: str,
         vector: list[float],
-        text_source: str = "alert_summary",
     ) -> AlertEmbedding:
+        str_alert_id = str(alert_id)
         existing = session.execute(
-            select(AlertEmbedding).where(AlertEmbedding.alert_id == alert_id)
+            select(AlertEmbedding).where(AlertEmbedding.alert_id == str_alert_id)
         ).scalar_one_or_none()
+
         if existing:
-            existing.vector = vector
-            existing.model_name = model_name
-            existing.text_source = text_source
+            existing.embedding = vector
             return existing
+
         emb = AlertEmbedding(
-            tenant_id=tenant_id,
-            alert_id=alert_id,
-            model_name=model_name,
-            vector=vector,
-            text_source=text_source,
+            id=str_alert_id,
+            tenant_id=str(tenant_id),
+            alert_id=str_alert_id,
+            embedding=vector,
         )
         session.add(emb)
         session.flush()
@@ -48,25 +44,16 @@ class VectorStore:
         tenant_id: UUID,
         query_vector: list[float],
         limit: int = 10,
-    ) -> list[tuple[UUID, float]]:
-        """Brute-force cosine similarity — replace with Qdrant in Phase 3."""
-        rows = session.execute(
-            select(AlertEmbedding).where(AlertEmbedding.tenant_id == tenant_id)
-        ).scalars()
-        scored: list[tuple[UUID, float]] = []
-        for row in rows:
-            score = _cosine_similarity(query_vector, row.vector)
-            scored.append((row.alert_id, score))
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[:limit]
+    ) -> list[tuple[str, float]]:
+        """Native pgvector cosine distance search pushed down to PostgreSQL."""
+        distance_col = AlertEmbedding.embedding.cosine_distance(query_vector)
 
+        stmt = (
+            select(AlertEmbedding.alert_id, distance_col.label("distance"))
+            .where(AlertEmbedding.tenant_id == str(tenant_id))
+            .order_by(distance_col.asc())
+            .limit(limit)
+        )
 
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    if not a or not b or len(a) != len(b):
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(x * x for x in b))
-    if na == 0 or nb == 0:
-        return 0.0
-    return dot / (na * nb)
+        rows = session.execute(stmt).all()
+        return [(str(row.alert_id), round(1.0 - float(row.distance), 4)) for row in rows]

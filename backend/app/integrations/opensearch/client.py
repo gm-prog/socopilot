@@ -1,3 +1,4 @@
+import asyncio
 """OpenSearch client with PostgreSQL graceful fallback."""
 
 import time
@@ -111,7 +112,6 @@ class OpenSearchClient(SearchBackend):
             return None
         start = time.perf_counter()
         try:
-            self.ensure_indices()
             doc = {**document, "alert_id": alert_id}
             resp = client.index(index=self.index_alerts, body=doc, id=alert_id, refresh=False)
             from app.core.metrics import OPENSEARCH_INDEX_LATENCY
@@ -130,7 +130,6 @@ class OpenSearchClient(SearchBackend):
             logger.warning("opensearch_index_ioc_skipped", ioc_id=ioc_id, reason="client_unavailable")
             return None
         try:
-            self.ensure_indices()
             resp = client.index(index=self.index_iocs, body=document, id=ioc_id, refresh=False)
             return resp.get("_id")
         except Exception as exc:
@@ -138,9 +137,11 @@ class OpenSearchClient(SearchBackend):
             return None
 
     async def index_alert(self, alert_id: str, document: dict) -> str | None:
-        return self.index_alert_sync(alert_id, document)
+        return await asyncio.to_thread(self.index_alert_sync, alert_id, document)
 
     def search_alerts_sync(self, query: str, tenant_id: str, limit: int = 20) -> list[dict]:
+        if not tenant_id or not str(tenant_id).strip():
+            raise ValueError("tenant_id is required and cannot be empty for secure search")
         if not self.enabled:
             return []
         client = self._get_client()
@@ -172,4 +173,6 @@ class OpenSearchClient(SearchBackend):
             return await self._fallback.search_alerts(query, limit)
         q = query.get("q", "")
         tenant_id = query.get("tenant_id", "")
-        return self.search_alerts_sync(q, tenant_id, limit)
+        if not tenant_id or not str(tenant_id).strip():
+            raise ValueError("tenant_id is mandatory for OpenSearch queries")
+        return await asyncio.to_thread(self.search_alerts_sync, q, tenant_id, limit)

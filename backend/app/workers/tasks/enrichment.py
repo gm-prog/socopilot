@@ -71,9 +71,14 @@ def run_enrichment_job(self, job_id: str) -> dict:
 
             if result.status == "error":
                 PROVIDER_FAILURES.labels(provider=job.provider).inc()
-                if job.retry_count < 3:
+                err_msg = (result.error_message or "").lower()
+                is_fatal = any(code in err_msg for code in ["401", "403", "404", "unauthorized", "forbidden", "invalid key"])
+                
+                if not is_fatal and job.retry_count < 3:
                     job.retry_count += 1
                     raise self.retry(exc=Exception(result.error_message or "provider error"))
+                else:
+                    logger.warning("enrichment_task_failed_permanently", provider=job.provider, error=result.error_message, is_fatal=is_fatal)
 
             _merge_enrichment_summary(session, job.alert_id, job.provider, result.summary)
             session.flush()

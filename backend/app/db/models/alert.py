@@ -1,12 +1,10 @@
-"""Alert model — Phase 0 base schema."""
+"""Alert database model."""
 
-import uuid
-from pgvector.sqlalchemy import Vector
 from datetime import datetime
-
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import DateTime, Index, String, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.mixins import TenantMixin
@@ -16,6 +14,9 @@ class Alert(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
     __tablename__ = "alerts"
     __table_args__ = (
         UniqueConstraint("tenant_id", "alert_fingerprint", name="uq_alerts_tenant_fingerprint"),
+        Index("ix_alerts_tenant_status", "tenant_id", "status"),
+        Index("ix_alerts_tenant_severity", "tenant_id", "severity"),
+        Index("ix_alerts_tenant_detected_at", "tenant_id", "detected_at"),
     )
 
     source: Mapped[str] = mapped_column(String(100), nullable=False, default="webhook")

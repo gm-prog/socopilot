@@ -198,12 +198,12 @@ class AlertsEventBroker:
         if self._pubsub is not None:
             with suppress(Exception):
                 await self._pubsub.unsubscribe(ALERTS_CHANNEL)
-                await self._pubsub.close()
+                await self._pubsub.aclose()
             self._pubsub = None
 
         if self._redis is not None:
             with suppress(Exception):
-                await self._redis.close()
+                await self._redis.aclose()
             self._redis = None
 
     async def _ensure_connected(self) -> bool:
@@ -298,3 +298,16 @@ class AlertsEventBroker:
                 )
 
                 backoff_seconds = min(backoff_seconds * 2, 10.0)
+    async def prune_stale_connections(self) -> None:
+        async with self._lock:
+            for tenant_id, sockets in list(self._connections.items()):
+                stale = set()
+                for ws in list(sockets):
+                    try:
+                        await ws.send_json({"type": "PING"})
+                    except Exception:
+                        stale.add(ws)
+                for ws in stale:
+                    sockets.discard(ws)
+                if not sockets:
+                    self._connections.pop(tenant_id, None)

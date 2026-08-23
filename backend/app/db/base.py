@@ -22,6 +22,12 @@ class TimestampMixin:
         server_default=func.now(),
         nullable=False,
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
 
 class UUIDPrimaryKeyMixin:
@@ -37,14 +43,13 @@ class UUIDPrimaryKeyMixin:
 # ----------------------------------------------------------------------
 
 from sqlalchemy.orm import Query
-from sqlalchemy.orm import Query
 @event.listens_for(Query, "before_compile", retval=True)
 def enforce_tenant_isolation_criteria(query):
     """
     Interceptors query compilation for all entities subclassing TenantMixin.
     Extracts the request-scoped tenant_id from execution_options and binds it natively.
     """
-    tenant_id = query.execution_options.get("tenant_id", None)
+    tenant_id = query.get_execution_options().get("tenant_id", None)
     
     if tenant_id is not None:
         logger.debug(
@@ -61,8 +66,9 @@ def enforce_tenant_isolation_criteria(query):
         )
     else:
         # Check if query targets any isolated entities
-        for mapper in (query.context.compile_state.mappers if query.context and query.context.compile_state else []):
-            if issubclass(mapper.class_, TenantMixin):
+        for desc in getattr(query, 'column_descriptions', []):
+            mapper = desc.get('mapper')
+            if mapper and issubclass(getattr(mapper, 'class_', object), TenantMixin):
                 logger.critical(
                     "CRITICAL: System attempted to query a multi-tenant model without a tenant execution context.",
                     extra={"target_model": mapper.class_.__name__}

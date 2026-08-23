@@ -83,8 +83,14 @@ async def update_alert_workflow(
     current_user: CurrentUserDep,
     db: DbSession,
 ) -> AlertDetail:
-    alert = await db.get(NormalizedAlert, alert_id)
-    if alert is None or alert.tenant_id != current_user.tenant_id:
+    result = await db.execute(
+        select(NormalizedAlert).where(
+            NormalizedAlert.id == alert_id,
+            NormalizedAlert.tenant_id == current_user.tenant_id,
+        )
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
 
     if body.lifecycle_state is not None:
@@ -101,3 +107,66 @@ async def update_alert_workflow(
 
     await db.flush()
     return await get_alert(alert_id, current_user, db)
+
+
+from app.db.models.investigation_event import InvestigationEvent
+from app.schemas.alerts import InvestigationEventCreate, InvestigationEventResponse
+
+
+@router.get("/{alert_id}/timeline", response_model=list[InvestigationEventResponse])
+async def get_alert_timeline(
+    alert_id: UUID,
+    current_user: CurrentUserDep,
+    db: DbSession,
+) -> list[InvestigationEventResponse]:
+    result = await db.execute(
+        select(NormalizedAlert).where(
+            NormalizedAlert.id == alert_id,
+            NormalizedAlert.tenant_id == current_user.tenant_id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    events_result = await db.execute(
+        select(InvestigationEvent)
+        .where(
+            InvestigationEvent.alert_id == alert_id,
+            InvestigationEvent.tenant_id == current_user.tenant_id,
+        )
+        .order_by(InvestigationEvent.created_at.asc())
+    )
+    events = events_result.scalars().all()
+    return [InvestigationEventResponse.model_validate(e) for e in events]
+
+
+@router.post("/{alert_id}/timeline", response_model=InvestigationEventResponse, status_code=201)
+async def create_alert_timeline_event(
+    alert_id: UUID,
+    body: InvestigationEventCreate,
+    current_user: CurrentUserDep,
+    db: DbSession,
+) -> InvestigationEventResponse:
+    result = await db.execute(
+        select(NormalizedAlert).where(
+            NormalizedAlert.id == alert_id,
+            NormalizedAlert.tenant_id == current_user.tenant_id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    event = InvestigationEvent(
+        tenant_id=current_user.tenant_id,
+        alert_id=alert_id,
+        event_type=body.event_type,
+        title=body.title,
+        description=body.description,
+        user_id=current_user.id,
+        event_metadata=body.event_metadata,
+    )
+    db.add(event)
+    await db.flush()
+    await db.refresh(event)
+
+    return InvestigationEventResponse.model_validate(event)

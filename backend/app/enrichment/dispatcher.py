@@ -13,7 +13,8 @@ from app.enrichment.providers import PROVIDER_REGISTRY
 class EnrichmentDispatcher:
     """Dispatch enrichment jobs for extracted IOCs."""
 
-    DEFAULT_PROVIDERS = ("abuseipdb",)
+    # Updated to include all active production providers
+    DEFAULT_PROVIDERS = ("abuseipdb", "virustotal", "greynoise", "shodan")
 
     def create_jobs(
         self,

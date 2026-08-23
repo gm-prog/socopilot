@@ -71,3 +71,23 @@ def test_shodan_enrich_returns_skipped():
     assert result.status == "skipped"
     assert result.summary["stub"] is True
     assert "ports" in result.summary
+
+
+def test_greynoise_dynamic_flag_toggle(monkeypatch):
+    from app.core.config import settings
+    from app.enrichment.providers.greynoise import GreyNoiseProvider
+
+    # 1. Default disabled state
+    provider = GreyNoiseProvider()
+    assert provider.enabled is False
+    res = provider.enrich("ipv4", "8.8.8.8")
+    assert res.status == "skipped"
+    assert res.summary["stub"] is True
+
+    # 2. Dynamic override via monkeypatch
+    monkeypatch.setattr(settings, "greynoise_enabled", True)
+    monkeypatch.setattr(settings, "greynoise_api_key", "dummy_key")
+
+    enabled_provider = GreyNoiseProvider()
+    assert enabled_provider.enabled is True
+    assert enabled_provider.api_key == "dummy_key"

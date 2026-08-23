@@ -1,8 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 import asyncio
 from typing import Set
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from app.db.seed import seed_default_tenant
 from app.db.session import AsyncSessionLocal, engine
 from app.db.sync_session import sync_engine
@@ -11,9 +13,9 @@ from sqlalchemy import text
 
 from app import __version__
 from app.api.v1.router import api_router
-from app.api.ws.alerts import router as alerts_ws_router
 from app.core.config import get_settings
 from app.core.logging import get_logger, setup_logging
+from app.core.redis import close_redis_client
 from app.middleware.correlation import CorrelationIdMiddleware
 from app.middleware.pii_redaction import PIIRedactionMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -107,7 +109,7 @@ async def lifespan(app: FastAPI):
         jwt_algorithm=settings.algorithm,
     )
 
-    # 1. WAIT FOR DATABASE (CRITICAL FIX)
+    # 1. WAIT FOR DATABASE
     await wait_for_db(engine)
 
     # 2. SAFE SEEDING (NON-FATAL)
@@ -116,6 +118,16 @@ async def lifespan(app: FastAPI):
             await seed_default_tenant(session)
     except Exception as e:
         logger.warning("seed_failed_non_fatal", error=str(e))
+
+    # Initialize OpenSearch indices once at startup
+    try:
+        from app.integrations.opensearch.client import OpenSearchClient
+        os_client = OpenSearchClient()
+        if os_client.enabled and not os.getenv("TESTING") and "pytest" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
+            os_client.ensure_indices()
+            logger.info("opensearch_indices_ensured")
+    except Exception as e:
+        logger.warning("opensearch_indices_init_failed", error=str(e))
 
     # 3. INIT REALTIME SYSTEMS
     app.state.alerts_ws_manager = AlertsWebSocketManager()
@@ -131,6 +143,11 @@ async def lifespan(app: FastAPI):
     yield
 
     await app.state.alerts_event_broker.stop()
+    await engine.dispose()
+    sync_engine.dispose()
+    logger.info("database_engines_disposed")
+    await close_redis_client()
+    logger.info("redis_connections_closed")
 
 
 def create_app() -> FastAPI:
@@ -143,13 +160,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    cors_origins = [
+    cors_origins = getattr(settings, "cors_origins", [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://frontend:3000",
-    ]
+    ])
 
     app.add_middleware(
         CORSMiddleware,
@@ -185,7 +202,6 @@ def create_app() -> FastAPI:
 
     # ROUTES
     app.include_router(api_router, prefix="/api/v1")
-    app.include_router(alerts_ws_router)
 
     @app.get("/api/v1/health")
     def health():
@@ -197,6 +213,22 @@ def create_app() -> FastAPI:
 
     # STATIC FILES (frontend)
     app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        correlation_id = request.headers.get("X-Correlation-ID", "unknown")
+        logger = get_logger(__name__)
+        logger.exception("unhandled_internal_error", correlation_id=correlation_id, error=str(exc))
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "INTERNAL_SERVER_ERROR",
+                    "message": "An unexpected error occurred.",
+                    "correlation_id": correlation_id,
+                }
+            },
+        )
 
     return app
 

@@ -40,3 +40,11 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["app.workers"], related_name="tasks", force=True)
+
+# Task Guardrails and Expiry Configuration
+celery_app.conf.update(
+    result_expires=3600,
+    task_time_limit=300,
+    task_soft_time_limit=240,
+    broker_transport_options={"visibility_timeout": 3600},
+)

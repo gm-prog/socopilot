@@ -5,7 +5,7 @@ from celery import chain, group
 from app.workers.celery_app import celery_app
 from app.workers.tasks.phase2 import (
     dispatch_enrichment_jobs,
-    extract_iocs_task,
+    extract_iocs,
     generate_alert_embedding,
     generate_copilot_summary_task,
     index_alert_opensearch,
@@ -29,7 +29,7 @@ def dispatch_post_ingest_pipeline(
         "raw_event_id": raw_event_id,
     }
     main_chain = chain(
-        extract_iocs_task.s(header),
+        extract_iocs.s(header),
         dispatch_enrichment_jobs.s(),
         generate_copilot_summary_task.s(),
     )

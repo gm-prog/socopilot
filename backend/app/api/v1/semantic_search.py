@@ -5,7 +5,7 @@ from sqlalchemy import text
 from app.db.session import get_db
 from app.services.embedding import model
 from app.core.security import get_current_user
-from app.core.dependencies import TenantDep
+from app.schemas.user import UserRead
 
 router = APIRouter()
 
@@ -14,8 +14,7 @@ router = APIRouter()
 def semantic_search(
     body: dict,
     db: Session = Depends(get_db),
-    tenant_id: str = "00000000-0000-0000-0000-000000000000",
-    # user=Depends(get_current_user),
+    user: UserRead = Depends(get_current_user),
 ):
     query_text = body.get("query")
     limit = body.get("limit", 10)

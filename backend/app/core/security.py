@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from jose import jwt
 from jose.exceptions import JWTError, ExpiredSignatureError
@@ -11,6 +11,9 @@ from passlib.context import CryptContext
 from app.core.config import get_settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+ISSUER = "socopilot-auth"
+AUDIENCE = "socopilot-api"
 
 
 # ---------------- EXCEPTIONS ----------------
@@ -33,7 +36,20 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-# ---------------- TOKEN ----------------
+# ---------------- TOKEN HELPERS ----------------
+
+def normalize_bearer_token(token: str | None) -> str | None:
+    if not token:
+        return None
+
+    token = token.strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+
+    return token or None
+
+
+# ---------------- TOKEN CREATION ----------------
 
 def create_access_token(
     subject: str | UUID,
@@ -53,6 +69,9 @@ def create_access_token(
         "role": role,
         "exp": expire,
         "type": "access",
+        "iss": ISSUER,
+        "aud": AUDIENCE,
+        "jti": str(uuid4()),
     }
 
     return jwt.encode(
@@ -62,32 +81,26 @@ def create_access_token(
     )
 
 
-# ---------------- TOKEN HELPERS ----------------
-
-def normalize_bearer_token(token: str | None) -> str | None:
-    if not token:
-        return None
-
-    token = token.strip()
-    if token.lower().startswith("bearer "):
-        token = token[7:].strip()
-
-    return token or None
-
-
-def decode_access_token(token: str) -> dict[str, Any]:
+def create_refresh_token(subject: str | UUID, expires_delta: timedelta | None = None) -> str:
+    """Create a signed refresh token with issuer, audience, jti, and type marker."""
     settings = get_settings()
-
-    token = normalize_bearer_token(token)
-    if not token:
-        raise TokenValidationError("missing_token")
-
-    return jwt.decode(
-        token,
-        settings.secret_key,
-        algorithms=[settings.algorithm],
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(days=settings.refresh_token_expire_days)
     )
 
+    payload = {
+        "sub": str(subject),
+        "exp": expire,
+        "type": "refresh",
+        "iss": ISSUER,
+        "aud": AUDIENCE,
+        "jti": str(uuid4()),
+    }
+
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+# ---------------- TOKEN VALIDATION ----------------
 
 def validate_access_token(token: str | None) -> dict[str, Any]:
     token = normalize_bearer_token(token)
@@ -102,18 +115,23 @@ def validate_access_token(token: str | None) -> dict[str, Any]:
             token,
             settings.secret_key,
             algorithms=[settings.algorithm],
+            issuer=ISSUER,
+            audience=AUDIENCE,
         )
-
     except ExpiredSignatureError:
         raise TokenValidationError("expired_token")
-
     except JWTError:
         raise TokenValidationError("invalid_token")
 
-    if payload.get("type") != "access":
+    if payload.get("type") != "access" or not payload.get("jti"):
         raise TokenValidationError("invalid_token")
 
     return payload
+
+
+def decode_access_token(token: str) -> dict[str, Any]:
+    """Helper wrapper that delegates directly to validate_access_token."""
+    return validate_access_token(token)
 
 
 def verify_token(token: str) -> dict[str, Any] | None:
@@ -121,22 +139,6 @@ def verify_token(token: str) -> dict[str, Any] | None:
         return validate_access_token(token)
     except TokenValidationError:
         return None
-
-
-def create_refresh_token(subject: str | UUID, expires_delta: timedelta | None = None) -> str:
-    """Create a signed refresh token with a longer expiry and type marker."""
-    settings = get_settings()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(days=settings.refresh_token_expire_days)
-    )
-
-    payload = {
-        "sub": str(subject),
-        "exp": expire,
-        "type": "refresh",
-    }
-
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
 def validate_refresh_token(token: str) -> dict[str, Any]:
@@ -147,13 +149,19 @@ def validate_refresh_token(token: str) -> dict[str, Any]:
 
     settings = get_settings()
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+            issuer=ISSUER,
+            audience=AUDIENCE,
+        )
     except ExpiredSignatureError:
         raise TokenValidationError("expired_token")
     except JWTError:
         raise TokenValidationError("invalid_token")
 
-    if payload.get("type") != "refresh":
+    if payload.get("type") != "refresh" or not payload.get("jti"):
         raise TokenValidationError("invalid_token")
 
     return payload

@@ -33,8 +33,19 @@ logger = get_logger(__name__)
 
 # Database session factory for Celery workers (synchronous)
 # Note: Workers use sync sessions to avoid event loop conflicts
-DATABASE_URL = "postgresql://socopilot:socopilot_dev@postgres:5432/socopilot"
-engine = create_engine(DATABASE_URL, echo=False, pool_size=5, max_overflow=10)
+from app.core.config import get_settings
+
+settings = get_settings()
+DATABASE_URL = getattr(settings, "DATABASE_URL", None) or getattr(settings, "database_url_override", None) or "postgresql://socopilot:socopilot_dev@postgres:5432/socopilot"
+
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=3600
+)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 

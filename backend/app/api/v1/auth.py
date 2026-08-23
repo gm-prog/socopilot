@@ -1,10 +1,12 @@
 """Authentication endpoints (JWT with refresh cookie)."""
 
+import time
 from fastapi import APIRouter, HTTPException, status, Response, Request
 from sqlalchemy import select
 
 from app.core.dependencies import CurrentUserDep, DbSession
 from app.core.logging import get_logger
+from app.core.redis import blacklist_jti, is_jti_blacklisted
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -33,11 +35,13 @@ async def register(body: RegisterRequest, db: DbSession) -> TokenResponse:
     db.add(tenant)
     await db.flush()
 
+    # Enforce standard non-admin role for public self-registration
+    assigned_role = "analyst" if body.role == "admin" else body.role
     user = User(
         tenant_id=tenant.id,
         email=body.email,
         hashed_password=get_password_hash(body.password),
-        role=body.role,
+        role=assigned_role,
     )
     db.add(user)
     await db.flush()
@@ -61,7 +65,6 @@ async def login(body: LoginRequest, response: Response, db: DbSession) -> TokenR
     access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, role=user.role)
     refresh_token = create_refresh_token(subject=user.id)
 
-    # Set refresh token as secure, HTTP-only cookie
     response.set_cookie(
         key="soc_refresh_token",
         value=refresh_token,
@@ -76,39 +79,76 @@ async def login(body: LoginRequest, response: Response, db: DbSession) -> TokenR
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_access_token(request: Request, db: DbSession) -> TokenResponse:
+async def refresh_access_token(request: Request, response: Response, db: DbSession) -> TokenResponse:
     refresh_token = request.cookies.get("soc_refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing")
 
     try:
         payload = validate_refresh_token(refresh_token)
+        jti = payload.get("jti")
+        if jti and await is_jti_blacklisted(jti):
+            logger.warning("auth_refresh_failed", reason="token_revoked", jti=jti)
+            raise HTTPException(status_code=401, detail="Token has been revoked")
+
         user_id: str = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Malformed refresh token")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
-    # Re-create access token with user context
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    # Revoke old refresh token JTI matching remaining TTL
+    exp = payload.get("exp", 0)
+    remaining_ttl = max(1, int(exp - time.time()))
+    if jti:
+        await blacklist_jti(jti, remaining_ttl)
 
     access_token = create_access_token(subject=user.id, tenant_id=user.tenant_id, role=user.role)
+    new_refresh_token = create_refresh_token(subject=user.id)
+
+    response.set_cookie(
+        key="soc_refresh_token",
+        value=new_refresh_token,
+        httponly=True,
+        secure=(settings.app_env == "production"),
+        samesite="lax",
+        max_age=int(settings.refresh_token_expire_days * 24 * 60 * 60),
+    )
+
     return TokenResponse(access_token=access_token)
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie(key="soc_refresh_token")
+async def logout(request: Request, response: Response):
+    refresh_token = request.cookies.get("soc_refresh_token")
+    if refresh_token:
+        try:
+            payload = validate_refresh_token(refresh_token)
+            jti = payload.get("jti")
+            exp = payload.get("exp", 0)
+            if jti and exp:
+                remaining_ttl = max(1, int(exp - time.time()))
+                await blacklist_jti(jti, remaining_ttl)
+        except Exception:
+            pass  # Ignore invalid token during logout cleanup
+
+    response.delete_cookie(
+        key="soc_refresh_token",
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=(settings.app_env == "production"),
+    )
     return {"detail": "Session revoked"}
 
 
 @router.get("/me", response_model=UserResponse)
-async def me(current_user: CurrentUserDep, db: DbSession) -> UserResponse:
-    result = await db.execute(select(User).where(User.id == current_user.user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse.model_validate(user)
+async def me(current_user: CurrentUserDep) -> UserResponse:
+    return current_user

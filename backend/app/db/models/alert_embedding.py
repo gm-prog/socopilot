@@ -1,24 +1,18 @@
-"""Alert semantic embeddings (Phase 2 foundation)."""
-
-import uuid
-
-from sqlalchemy import ForeignKey, String
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from typing import List
+from datetime import datetime
+from sqlalchemy import String, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
+from pgvector.sqlalchemy import Vector
 
-from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from app.db.mixins import TenantMixin
+from app.db.base import Base
 
-
-class AlertEmbedding(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
+class AlertEmbedding(Base):
     __tablename__ = "alert_embeddings"
-    alert_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("normalized_alerts.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True,
-        index=True,
-    )
-    model_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    vector: Mapped[list] = mapped_column(JSONB, nullable=False)
-    text_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    alert_id: Mapped[str] = mapped_column(String, ForeignKey("normalized_alerts.id"), index=True, nullable=False)
+
+    embedding: Mapped[List[float]] = mapped_column(Vector(768), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

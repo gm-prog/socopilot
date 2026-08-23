@@ -62,3 +62,25 @@ class CanonicalAlertSchema(BaseModel):
 
     def model_dump_canonical(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
+
+from typing import Any, Optional
+
+class InvestigationEventCreate(BaseModel):
+    event_type: str
+    title: str
+    description: Optional[str] = None
+    event_metadata: Optional[dict[str, Any]] = None
+
+
+class InvestigationEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    alert_id: UUID
+    event_type: str
+    title: str
+    description: Optional[str] = None
+    created_by: Optional[UUID] = None
+    created_at: datetime
+    event_metadata: Optional[dict[str, Any]] = None

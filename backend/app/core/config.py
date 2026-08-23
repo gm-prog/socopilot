@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     greynoise_api_key: str = Field(default="", alias="GREYNOISE_API_KEY")
     shodan_api_key: str = Field(default="", alias="SHODAN_API_KEY")
 
+    abuseipdb_enabled: bool = Field(default=False, alias="ABUSEIPDB_ENABLED")
+    virustotal_enabled: bool = Field(default=False, alias="VIRUSTOTAL_ENABLED")
+    greynoise_enabled: bool = Field(default=False, alias="GREYNOISE_ENABLED")
+    shodan_enabled: bool = Field(default=False, alias="SHODAN_ENABLED")
+
     dedup_time_bucket_minutes: int = Field(default=15, alias="DEDUP_TIME_BUCKET_MINUTES")
     ingest_default_source: str = Field(default="webhook", alias="INGEST_DEFAULT_SOURCE")
     ingest_default_tenant_id: str | None = Field(default=None, alias="INGEST_DEFAULT_TENANT_ID")
@@ -185,3 +190,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+settings = get_settings()

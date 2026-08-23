@@ -25,7 +25,7 @@ services:
     container_name: redis
     ports:
     - 6379:6379
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
     healthcheck:
       test:
       - CMD
@@ -69,9 +69,7 @@ services:
       HF_HOME: /tmp/hf_cache
       TRANSFORMERS_CACHE: /tmp/hf_cache
     volumes:
-    - ../backend/app:/app/app:ro
-    - ../backend/alembic:/app/alembic:ro
-    - ../backend/static:/app/static:ro
+    - ../backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,9 +101,7 @@ services:
       CELERY_WORKER_PREFETCH_MULTIPLIER: 1
       OLLAMA_HOST: http://ollama:11434
     volumes:
-    - ../backend/app:/app/app:ro
-    - ../backend/alembic:/app/alembic:ro
-    - ../backend/static:/app/static:ro
+    - ../backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -137,9 +133,7 @@ services:
       CELERY_WORKER_PREFETCH_MULTIPLIER: 1
       OLLAMA_HOST: http://ollama:11434
     volumes:
-    - ../backend/app:/app/app:ro
-    - ../backend/alembic:/app/alembic:ro
-    - ../backend/static:/app/static:ro
+    - ../backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,9 +165,7 @@ services:
       CELERY_WORKER_PREFETCH_MULTIPLIER: 1
       OLLAMA_HOST: http://ollama:11434
     volumes:
-    - ../backend/app:/app/app:ro
-    - ../backend/alembic:/app/alembic:ro
-    - ../backend/static:/app/static:ro
+    - ../backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -202,9 +194,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       OLLAMA_HOST: http://ollama:11434
     volumes:
-    - ../backend/app:/app/app:ro
-    - ../backend/alembic:/app/alembic:ro
-    - ../backend/static:/app/static:ro
+    - ../backend:/app
     depends_on:
       postgres:
         condition: service_healthy

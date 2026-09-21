@@ -9,8 +9,24 @@ build/
 .venv/
 venv/
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+*.cer
+credentials.json
+service-account.json
+kubeconfig
+*.sqlite
+*.sqlite3
+*.db
+*.dump
 *.log
+logs/
+tmp/
+.env.local
 
 # Node
 node_modules/
@@ -58,6 +74,10 @@ htmlcov/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+build/
+dist/
+coverage/
+htmlcov/
 npm-debug.log*
 yarn-error.log
 pnpm-lock.yaml

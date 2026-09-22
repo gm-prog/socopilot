@@ -163,7 +163,10 @@ async def create_alert_timeline_event(
         title=body.title,
         description=body.description,
         user_id=current_user.id,
-        event_metadata=body.event_metadata,
+        # NOTE: the ORM column is `payload`; the request schema field is
+        # `event_metadata`. Mapping here keeps the public API contract
+        # stable while matching the database model.
+        payload=body.event_metadata,
     )
     db.add(event)
     await db.flush()

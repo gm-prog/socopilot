@@ -126,8 +126,11 @@ class NormalizedAlert(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin):
         default=dict,
     )
 
+    # 768 dims — matches the configured embedding model (nomic-embed-text).
+    # Aligned from 384 by migration b8d2f5a1c4e7; keep in sync with
+    # services/embedding.py and the AlertEmbedding model.
     embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(384),
+        Vector(768),
         nullable=True,
     )
 

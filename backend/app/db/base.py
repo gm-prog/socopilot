@@ -39,45 +39,48 @@ class UUIDPrimaryKeyMixin:
 
 
 # ----------------------------------------------------------------------
-# GLOBAL SQLALCHEMY COMPILATION INTERCEPTOR (AUTOMATED ISOLATION)
+# GLOBAL TENANT ISOLATION HOOK (opt-in via execution options)
 # ----------------------------------------------------------------------
+#
+# SQLAlchemy 2.0 replacement for the previous Query.before_compile
+# interceptor, which never fired on 2.0-style queries (and called a
+# non-existent Query.filter_by_clause method), i.e. it provided no
+# isolation at all.
+#
+# Usage: any SELECT/UPDATE/DELETE executed with
+#   session.execute(stmt, params, execution_options={"tenant_id": <uuid>})
+# automatically gets `tenant_id == <uuid>` applied to every TenantMixin
+# entity in the statement, including relationship loads. Queries without
+# the execution option are NOT modified — explicit per-query filters
+# (as used across the API layer) remain the primary isolation mechanism.
 
-from sqlalchemy.orm import Query
-@event.listens_for(Query, "before_compile", retval=True)
-def enforce_tenant_isolation_criteria(query):
-    """
-    Interceptors query compilation for all entities subclassing TenantMixin.
-    Extracts the request-scoped tenant_id from execution_options and binds it natively.
-    """
-    tenant_id = query.get_execution_options().get("tenant_id", None)
-    
-    if tenant_id is not None:
-        logger.debug(
-            "Enforcing tenant isolation filter during compilation",
-            extra={"tenant_id": str(tenant_id)}
-        )
-        query = query.enable_assertions(False).filter_by_clause(
-            with_loader_criteria(
-                TenantMixin,
-                lambda cls: cls.tenant_id == tenant_id,
-                include_aliases=True,
-                propagate_to_loaders=True
-            )
-        )
-    else:
-        # Check if query targets any isolated entities
-        for desc in getattr(query, 'column_descriptions', []):
-            mapper = desc.get('mapper')
-            if mapper and issubclass(getattr(mapper, 'class_', object), TenantMixin):
-                logger.critical(
-                    "CRITICAL: System attempted to query a multi-tenant model without a tenant execution context.",
-                    extra={"target_model": mapper.class_.__name__}
-                )
-                raise RuntimeError(
-                    f"Data isolation fault: Query context missing 'tenant_id' for model {mapper.class_.__name__}"
-                )
+from sqlalchemy import event
+from sqlalchemy.orm import Session, with_loader_criteria
 
-    return query
+
+@event.listens_for(Session, "do_orm_execute")
+def enforce_tenant_isolation_criteria(orm_context):
+    tenant_id = orm_context.execution_options.get("tenant_id")
+
+    if tenant_id is None:
+        return
+
+    if not (orm_context.is_select or orm_context.is_update or orm_context.is_delete):
+        return
+
+    logger.debug(
+        "Enforcing tenant isolation criteria via execution options",
+        extra={"tenant_id": str(tenant_id)},
+    )
+
+    orm_context.statement = orm_context.statement.options(
+        with_loader_criteria(
+            TenantMixin,
+            lambda cls: cls.tenant_id == tenant_id,
+            include_aliases=True,
+            propagate_to_loaders=True,
+        )
+    )
 
 # Import model modules so Alembic autogenerate sees the complete metadata.
 from app.db import models  # noqa: E402,F401

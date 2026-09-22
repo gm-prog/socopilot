@@ -36,4 +36,4 @@ shell-api:
 	$(COMPOSE) exec api /bin/sh
 
 shell-worker:
-	$(COMPOSE) exec worker /bin/sh
+	$(COMPOSE) exec worker-ingest /bin/sh

@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.cases.repository import CaseRepository
-from app.core.dependencies import CurrentUserDep, DbSession
+from app.core.dependencies import CurrentUserDep, DbSession, WriteUserDep
 from app.schemas.cases import CaseCreateRequest, CaseListResponse, CaseResponse, CaseUpdateRequest
 
 router = APIRouter(prefix="/cases", tags=["cases"])
@@ -28,7 +28,7 @@ def _to_case_response(case) -> CaseResponse:
 @router.post("", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
 async def create_case(
     body: CaseCreateRequest,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> CaseResponse:
     repo = CaseRepository(db)
@@ -67,7 +67,7 @@ async def list_cases(
 async def update_case(
     case_id: UUID,
     body: CaseUpdateRequest,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> CaseResponse:
     repo = CaseRepository(db)

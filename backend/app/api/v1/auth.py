@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.core.dependencies import CurrentUserDep, DbSession
 from app.core.logging import get_logger
+from app.core.rate_limit import AUTH_LIMITS, limiter
 from app.core.redis import blacklist_jti, is_jti_blacklisted
 from app.core.security import (
     create_access_token,
@@ -25,7 +26,8 @@ logger = get_logger(__name__)
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, db: DbSession) -> TokenResponse:
+@limiter.limit(AUTH_LIMITS["register"])
+async def register(request: Request, body: RegisterRequest, db: DbSession) -> TokenResponse:
     existing = await db.execute(select(Tenant).where(Tenant.name == body.tenant_name))
     if existing.scalar_one_or_none():
         logger.info("auth_register_failed", reason="tenant_exists")

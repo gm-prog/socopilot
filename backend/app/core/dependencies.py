@@ -117,3 +117,9 @@ def require_roles(*allowed_roles: str):
             )
         return current_user
     return role_checker
+
+
+# Any authenticated user (read paths).
+# Mutating paths must use WriteUserDep instead: `readonly` accounts may list
+# and inspect alerts/cases but never create or modify anything.
+WriteUserDep = Annotated[User, Depends(require_roles("analyst", "lead", "admin"))]

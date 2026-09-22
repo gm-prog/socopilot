@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException
 
-from app.core.dependencies import CurrentUserDep, DbSession
+from app.core.dependencies import CurrentUserDep, DbSession, WriteUserDep
 from app.middleware.correlation import CORRELATION_HEADER
 from app.replay.service import ReplayService
 from app.schemas.phase2 import ReplayResponse
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/replay", tags=["replay"])
 async def replay_raw_event(
     raw_event_id: UUID,
     request: Request,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> ReplayResponse:
     """Reprocess a raw event through normalize → dedup → persist → post-ingest."""

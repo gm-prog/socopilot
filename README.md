@@ -76,6 +76,10 @@ npm run dev
 
 ---
 
+## Secrets
+
+See [docs/SECURITY_RUNBOOK.md](docs/SECURITY_RUNBOOK.md) for SECRET_KEY/admin-password rotation and git-history purge status.
+
 ## Testing
 
 ### Backend

@@ -9,7 +9,15 @@ Set-Location $Root
 
 if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
-    Write-Host "Created .env from .env.example"
+    # Generate a strong SECRET_KEY so local/dev never runs on a placeholder.
+    # The value is written directly into .env and never displayed.
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    $generatedKey = ($bytes | ForEach-Object { $_.ToString("x2") }) -join ""
+    (Get-Content ".env") -replace '^SECRET_KEY=.*$', "SECRET_KEY=$generatedKey" | Set-Content ".env"
+    Write-Host "Created .env from .env.example with a freshly generated SECRET_KEY"
+    Write-Host "Seed admin passwords (backend/scripts/seed_admin.py) still come from"
+    Write-Host "SEED_ADMIN_PASSWORD / SEED_ADMIN2_PASSWORD or are randomized - see docs/SECURITY_RUNBOOK.md"
 }
 
 if ($Build) {

@@ -43,6 +43,7 @@ def upgrade() -> None:
     op.create_index('ix_alerts_tenant_severity', 'alerts', ['tenant_id', 'severity'], unique=False)
     op.create_index('ix_alerts_tenant_status', 'alerts', ['tenant_id', 'status'], unique=False)
     op.add_column('audit_log', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
+    op.execute("UPDATE cases SET metadata_payload = '{}'::jsonb WHERE metadata_payload IS NULL")
     op.alter_column('cases', 'metadata_payload',
                existing_type=postgresql.JSONB(astext_type=sa.Text()),
                nullable=False)
@@ -87,9 +88,11 @@ def upgrade() -> None:
     op.add_column('raw_events', sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False))
     op.drop_index(op.f('idx_raw_events_tenant_received'), table_name='raw_events')
     op.drop_index(op.f('ix_raw_events_tenant_received'), table_name='raw_events')
+    op.execute("UPDATE users SET updated_at = now() WHERE updated_at IS NULL")
     op.alter_column('users', 'updated_at',
                existing_type=postgresql.TIMESTAMP(timezone=True),
-               nullable=False)
+               nullable=False,
+               server_default=sa.text('now()'))
     # ### end Alembic commands ###
 
 

@@ -13,6 +13,10 @@ utility so created users match application auth behavior.
 import asyncio
 import os
 import secrets
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/
 
 from sqlalchemy import select
 from app.db.session import AsyncSessionLocal

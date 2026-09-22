@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from kombu.exceptions import OperationalError
 
 from app.connectors.generic_json import GenericJsonConnector
-from app.core.dependencies import CurrentUserDep, DbSession
+from app.core.dependencies import CurrentUserDep, DbSession, WriteUserDep
 from app.core.logging import get_logger
 from app.ingest.event_service import IngestEventService
 from app.ingest.service import IngestService
@@ -33,7 +33,7 @@ connector = GenericJsonConnector()
 )
 async def ingest_event(
     body: IngestEventRequest,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> IngestEventQueuedResponse:
     """
@@ -103,7 +103,7 @@ async def ingest_event(
 )
 async def ingest_alerts(
     request: Request,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> IngestAlertsResponse:
     """
@@ -180,7 +180,7 @@ from app.workers.tasks.ingest_pipeline import parse_and_chunk_document_task
 
 @router.post("/document", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_document(
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     file: UploadFile = File(...),
 ):
     file_bytes = await file.read()

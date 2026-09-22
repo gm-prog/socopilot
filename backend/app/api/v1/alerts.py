@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 
-from app.core.dependencies import CurrentUserDep, DbSession
+from app.core.dependencies import CurrentUserDep, DbSession, WriteUserDep
 from app.db.models.alert_ioc import AlertIOC
 from app.db.models.normalized_alert import NormalizedAlert
 from app.db.models.raw_event import RawEvent
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 @router.get("", response_model=AlertListResponse)
 async def list_alerts(
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
@@ -47,7 +47,7 @@ async def list_alerts(
 @router.get("/{alert_id}", response_model=AlertDetail)
 async def get_alert(
     alert_id: UUID,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> AlertDetail:
     repo = AlertRepository(db)
@@ -80,7 +80,7 @@ async def get_alert(
 async def update_alert_workflow(
     alert_id: UUID,
     body: AlertWorkflowUpdate,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> AlertDetail:
     result = await db.execute(
@@ -116,7 +116,7 @@ from app.schemas.alerts import InvestigationEventCreate, InvestigationEventRespo
 @router.get("/{alert_id}/timeline", response_model=list[InvestigationEventResponse])
 async def get_alert_timeline(
     alert_id: UUID,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> list[InvestigationEventResponse]:
     result = await db.execute(
@@ -144,7 +144,7 @@ async def get_alert_timeline(
 async def create_alert_timeline_event(
     alert_id: UUID,
     body: InvestigationEventCreate,
-    current_user: CurrentUserDep,
+    current_user: WriteUserDep,
     db: DbSession,
 ) -> InvestigationEventResponse:
     result = await db.execute(

@@ -650,12 +650,6 @@ def _record_failure(
 import io
 from uuid import uuid4
 
-import io
-from uuid import uuid4
-
-import io
-from uuid import uuid4
-
 def chunk_text_sliding_window(text: str, max_chars: int = 1000, overlap: int = 200) -> list[str]:
     chunks = []
     start = 0

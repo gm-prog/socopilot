@@ -49,7 +49,7 @@ export const ThreatGrid = () => {
               <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
               <span>RECONNECTING {reconnectAttempts > 0 ? `(ATTEMPT ${reconnectAttempts})` : ""}</span>
             </div>
-          ) /}
+          )}
         </div>
       </div>
 

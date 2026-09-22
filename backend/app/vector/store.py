@@ -18,9 +18,8 @@ class VectorStore:
         alert_id: UUID,
         vector: list[float],
     ) -> AlertEmbedding:
-        str_alert_id = str(alert_id)
         existing = session.execute(
-            select(AlertEmbedding).where(AlertEmbedding.alert_id == str_alert_id)
+            select(AlertEmbedding).where(AlertEmbedding.alert_id == alert_id)
         ).scalar_one_or_none()
 
         if existing:
@@ -28,9 +27,9 @@ class VectorStore:
             return existing
 
         emb = AlertEmbedding(
-            id=str_alert_id,
-            tenant_id=str(tenant_id),
-            alert_id=str_alert_id,
+            id=alert_id,
+            tenant_id=tenant_id,
+            alert_id=alert_id,
             embedding=vector,
         )
         session.add(emb)

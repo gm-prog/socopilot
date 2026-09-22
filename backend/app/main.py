@@ -180,6 +180,16 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(PIIRedactionMiddleware)
 
+    # RATE LIMITING (brute-force protection on auth endpoints; see
+    # app.core.rate_limit). Handler converts RateLimitExceeded -> HTTP 429.
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+
+    from app.core.rate_limit import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # ------------------------------------------------------------------
     # FastAPI compatibility patch (safe)
     # ------------------------------------------------------------------
@@ -212,7 +222,12 @@ def create_app() -> FastAPI:
         return {"status": "ready"}
 
     # STATIC FILES (frontend)
-    app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
+    # The directory must exist before StaticFiles is instantiated (it raises
+    # RuntimeError otherwise, crashing uvicorn at import time in clean
+    # checkouts/containers where app/static was never created).
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    os.makedirs(static_dir, exist_ok=True)
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:

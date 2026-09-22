@@ -28,3 +28,21 @@ class InvestigationEvent(Base, UUIDPrimaryKeyMixin, TenantMixin, TimestampMixin)
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # ------------------------------------------------------------------
+    # API-compatibility aliases.
+    #
+    # The Pydantic response schema (InvestigationEventResponse) exposes
+    # `event_metadata` and `created_by`, while the actual columns are
+    # `payload` and `user_id`. These properties let pydantic's
+    # from_attributes validation read the real columns without a name
+    # mismatch (previously the API silently returned nulls and the POST
+    # endpoint raised TypeError for the unknown `event_metadata` kwarg).
+    # ------------------------------------------------------------------
+    @property
+    def event_metadata(self) -> dict[str, Any] | None:
+        return self.payload
+
+    @property
+    def created_by(self) -> uuid.UUID | None:
+        return self.user_id

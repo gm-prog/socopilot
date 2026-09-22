@@ -1,23 +1,31 @@
 # Phase 1 verification — run after stack is up and migrated
 param(
     [string]$Token = "",
-    [string]$ApiBase = "http://localhost:8000"
+    [string]$ApiBase = "http://localhost:8000",
+    [string]$Email = "",
+    [string]$Password = "",
+    [string]$TenantName = "acme-soc"
 )
 
 $ErrorActionPreference = "Stop"
 
 if (-not $Token) {
+    if (-not $Email -or -not $Password) {
+        Write-Host "Provide either -Token <jwt> or -Email <email> -Password <password>."
+        Write-Host "Credentials are intentionally not hardcoded in this script."
+        exit 1
+    }
     Write-Host "Logging in..." -ForegroundColor Cyan
-        $loginBody = @{ email = "admin@example.com"; password = "changeme123" } | ConvertTo-Json
+    $loginBody = @{ email = $Email; password = $Password } | ConvertTo-Json
     try {
         $login = Invoke-RestMethod -Uri "$ApiBase/api/v1/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
         $Token = $login.access_token
     } catch {
         Write-Host "Registering tenant..." -ForegroundColor Yellow
         $regBody = @{
-            email = "admin@example.com"
-            password = "changeme123"
-            tenant_name = "acme-soc"
+            email = $Email
+            password = $Password
+            tenant_name = $TenantName
             role = "admin"
         } | ConvertTo-Json
         $reg = Invoke-RestMethod -Uri "$ApiBase/api/v1/auth/register" -Method POST -Body $regBody -ContentType "application/json"

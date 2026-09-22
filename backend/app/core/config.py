@@ -33,7 +33,14 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, alias="API_PORT")
     build_version: str = Field(default="0.2.0", alias="BUILD_VERSION")
 
-    secret_key: str = Field(alias="SECRET_KEY")
+    # NOTE: a default exists so the app (and the test suite) can boot without
+    # env setup. The value is registered in _INSECURE_SECRET_KEYS below and is
+    # REJECTED whenever APP_ENV is not development/test — production startup
+    # fails fast unless a real SECRET_KEY is provided.
+    secret_key: str = Field(
+        default="insecure-dev-only-secret-key-change-me-0001",
+        alias="SECRET_KEY",
+    )
     access_token_expire_minutes: int = Field(default=60, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
     algorithm: Literal["HS256"] = "HS256"
@@ -88,6 +95,7 @@ class Settings(BaseSettings):
         "change-me-in-production-use-openssl-rand-hex-32",
         "changeme",
         "secret",
+        "insecure-dev-only-secret-key-change-me-0001",
     })
 
     @field_validator("secret_key")

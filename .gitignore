@@ -1,0 +1,111 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+*.cer
+credentials.json
+service-account.json
+kubeconfig
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.log
+logs/
+tmp/
+.env.local
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Docker
+*.pid
+
+# Data
+data/mitre/*.json
+!data/mitre/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Additional recommended ignores appended by infra cleanup
+# Python / backend
+.venv/
+venv/
+.env
+.env.*
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+coverage/
+htmlcov/
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+build/
+dist/
+coverage/
+htmlcov/
+npm-debug.log*
+yarn-error.log
+pnpm-lock.yaml
+
+# Docker / local
+docker-compose.override.yml
+docker/init/
+*.env
+
+# Editors / IDEs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & misc
+*.log
+*.swo
+*.swp
+
+.soc_token
+frontend/public/token.txt
+login.json
+
+.soc_token
+login.json
+
+.soc_token
+login.json
+frontend/public/token.txt

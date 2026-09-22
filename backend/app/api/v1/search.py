@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import select

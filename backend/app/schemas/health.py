@@ -1,0 +1,26 @@
+"""Health check schemas."""
+
+from pydantic import BaseModel
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+
+
+class ReadinessCheck(BaseModel):
+    name: str
+    status: str
+    detail: str | None = None
+
+
+class ReadinessResponse(BaseModel):
+    status: str
+    checks: list[ReadinessCheck]
+
+
+class SubsystemHealthResponse(BaseModel):
+    status: str
+    checks: dict[str, str]
+    version: str

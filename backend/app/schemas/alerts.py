@@ -1,0 +1,86 @@
+"""Alert list/detail API schemas."""
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.phase2 import IOCResponse
+
+
+class AlertSummary(BaseModel):
+    id: UUID
+    title: str
+    severity: str
+    status: str
+    lifecycle_state: str = "new"
+    source: str
+    detected_at: datetime
+    ingested_at: datetime
+    last_seen_at: datetime
+    duplicate_count: int
+    fingerprint: str
+    time_bucket: str
+    assigned_to: UUID | None = None
+    tags: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AlertDetail(AlertSummary):
+    description: str | None
+    source_event_id: str | None
+    raw_event_id: UUID | None
+    normalized_payload: dict[str, Any]
+    raw_payload: dict[str, Any] | None = None
+    enrichment_summary: dict[str, Any] | None = None
+    analyst_notes: str | None = None
+    assigned_at: datetime | None = None
+    closed_at: datetime | None = None
+    iocs: list[IOCResponse] = Field(default_factory=list)
+
+
+class AlertListResponse(BaseModel):
+    items: list[AlertSummary]
+    total: int
+    page: int
+    page_size: int
+
+
+class CanonicalAlertSchema(BaseModel):
+    """Internal canonical alert representation."""
+
+    source: str
+    source_event_id: str | None = None
+    title: str
+    description: str | None = None
+    severity: str
+    detected_at: datetime
+    rule_id: str | None = None
+    entities: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def model_dump_canonical(self) -> dict[str, Any]:
+        return self.model_dump(mode="json")
+
+from typing import Any, Optional
+
+class InvestigationEventCreate(BaseModel):
+    event_type: str
+    title: str
+    description: Optional[str] = None
+    event_metadata: Optional[dict[str, Any]] = None
+
+
+class InvestigationEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    alert_id: UUID
+    event_type: str
+    title: str
+    description: Optional[str] = None
+    created_by: Optional[UUID] = None
+    created_at: datetime
+    event_metadata: Optional[dict[str, Any]] = None

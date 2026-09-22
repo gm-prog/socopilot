@@ -1,20 +1,26 @@
 param(
-    [string]$Command
+    [string]$Command,
+    [string]$Email,
+    [string]$Password
 )
 
 $BASE_URL = "http://localhost:8000"
 
 function Login {
+    if (-not $Email -or -not $Password) {
+        Write-Host "Usage: .\soc.ps1 login -Email <email> -Password <password>"
+        Write-Host "Credentials are no longer hardcoded in this script."
+        return
+    }
 
     Write-Host "Logging in..."
 
     $body = @{
-        email = "admin@test.com"
-        password = "admin123"
+        email = $Email
+        password = $Password
     } | ConvertTo-Json
 
     try {
-
         $response = Invoke-RestMethod `
             -Uri "$BASE_URL/api/v1/auth/login" `
             -Method POST `
@@ -29,23 +35,12 @@ function Login {
         }
 
         Set-Content -Path ".soc_token" -Value $token
-# === AUTO FIX FRONTEND LOGIN ===
-$frontendTokenPath = "frontend\public\token.txt"
-
-if (!(Test-Path "frontend\public")) {
-    New-Item -ItemType Directory -Path "frontend\public" | Out-Null
-}
-
-Set-Content -Path $frontendTokenPath -Value $token
-Write-Host "Frontend token synced"
 
         Write-Host ""
-        Write-Host "Token saved"
+        Write-Host "Token saved to .soc_token (gitignored)"
         Write-Host ""
-        Write-Host $token
 
     } catch {
-
         Write-Host ""
         Write-Host "Request failed"
         Write-Host $_
@@ -62,7 +57,6 @@ function Me {
     $token = Get-Content ".soc_token"
 
     try {
-
         Invoke-RestMethod `
             -Uri "$BASE_URL/api/v1/auth/me" `
             -Method GET `
@@ -71,7 +65,6 @@ function Me {
             }
 
     } catch {
-
         Write-Host ""
         Write-Host "Request failed"
         Write-Host $_
@@ -95,7 +88,6 @@ function Test-Ingest {
     } | ConvertTo-Json
 
     try {
-
         $response = Invoke-RestMethod `
             -Uri "$BASE_URL/api/v1/ingest/alerts" `
             -Method POST `
@@ -112,7 +104,6 @@ function Test-Ingest {
         $response | ConvertTo-Json -Depth 10
 
     } catch {
-
         Write-Host ""
         Write-Host "Ingest failed"
         Write-Host $_
@@ -134,12 +125,10 @@ switch ($Command) {
     }
 
     default {
-
         Write-Host ""
         Write-Host "Available commands:"
         Write-Host ""
-
-        Write-Host ".\soc.ps1 login"
+        Write-Host ".\soc.ps1 login -Email <email> -Password <password>"
         Write-Host ".\soc.ps1 me"
         Write-Host ".\soc.ps1 test-ingest"
     }

@@ -17,9 +17,14 @@ Hello,
 We completed a `git filter-repo` history rewrite on `gm-prog/socopilot` to
 remove a leaked credential file (`frontend/public/token.txt`, whose token has
 also expired) from every commit. The default branch `main` was force-pushed
-with the cleaned history and is verified clean (zero trees contain the path).
-The stale `master` branch was deleted, and the remaining stale branches are
-being deleted as well.
+with the cleaned history and is verified clean (zero commits and zero trees on
+`main` contain the path). The stale `master` branch was deleted, and so were
+the four `devin/*` branches that rooted the pre-rewrite history.
+
+One branch, `alerts-page-store-migration`, has been intentionally retained for
+reference. Its ancestry still contains the removed file and we accept that, so
+please scope this request to the cached pull-request refs below and not to that
+branch.
 
 What remains on GitHub's side is outside API reach, so we need your help
 purging:
@@ -48,5 +53,8 @@ Thank you.
 - Repository: `gm-prog/socopilot`
 - Purge executed: 2026-09-22 (git filter-repo, `--invert-paths --path frontend/public/token.txt`)
 - Default branch after rewrite: `main` (verified: 0 commits/0 trees contain the path)
+- Leaked blob SHA, for your GC check: `b848f4c67b2635dcfd23b0107072eba560b7aeb4`
+- Branch refs deleted after the rewrite: `master`, `devin/1780897696-add-unit-tests`, `devin/1780897699-improve-error-handling`, `devin/1780897707-refactor-shared-utilities`, `devin/1780897712-security-hardening`
+- Branch ref intentionally retained: `alerts-page-store-migration` (head `69cfb65`) — pre-rewrite ancestry, still contains the removed file; out of scope for this request
 - Closed PRs whose heads predate the rewrite: #1, #2, #3, #4, #5
 - Cached head SHAs observed before deletion: `refs/pull/1` → `620c671`, `refs/pull/2` → `2f23782`, `refs/pull/3` → `785085a`, `refs/pull/4` → `68ff070`

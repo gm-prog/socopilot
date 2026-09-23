@@ -9,10 +9,11 @@ at the target machine.
 
 ## 1. Rotate `SECRET_KEY` (JWT signing key)
 
-**Why:** pre-2026-06-08 git history contains a real access token
-(`frontend/public/token.txt`, since purged from `main` — see §4) and two
-hardcoded seed passwords. Any deployment that used a `SECRET_KEY` from before
-that date must rotate so old artifacts are provably useless.
+**Why:** pre-2026-06-08 git history contained a real access token
+(`frontend/public/token.txt` and `.soc_token`, same blob `b848f4c`, since purged
+from all branches via two `filter-repo` runs — see §4) and two hardcoded seed
+passwords. Any deployment that used a `SECRET_KEY` from before that date must
+rotate so old artifacts are provably useless.
 
 **Generate (on the target host, never in chat/tickets):**
 
@@ -95,18 +96,46 @@ practice if usage patterns look wrong.
 
 ---
 
-## 4. Git-history purge status (2026-09-22)
+## 4. Git-history purge status (2026-09-23 — second purge)
+
+Two purges were required because the first was path-based.
+
+**First purge (2026-09-22):** `git filter-repo --invert-paths --path frontend/public/token.txt`
+removed that one path. The same blob `b848f4c67b2635dcfd23b0107072eba560b7aeb4`
+survived at `.soc_token` in five commits (`a161257`, `2f23782`, `14e6b4f`,
+`4e3b465`, `fa20c00`). Verification by path claimed clean; verification by
+blob SHA proved otherwise.
+
+**Second purge (2026-09-23):** `git filter-repo --strip-blobs-with-ids`
+with blob IDs:
+- `b848f4c67b2635dcfd23b0107072eba560b7aeb4` (`.soc_token` and `frontend/public/token.txt` — same content)
+- `37e1584a99e3e91989a4462842ff8b4eee95bb5d` (`frontend/repomix-output.xml`)
+- `810cb38876477b74799de8b41970c077689aa86b` (`repomix-output.xml`)
+- `bee9402d46abc32296fd645f84d1664bbbcdd137` (`repomix-output.xml`)
+
+All branch refs were rewritten, including `alerts-page-store-migration`.
 
 | Location | Status |
 |---|---|
-| `main` (default branch) | ✅ **purged** — `frontend/public/token.txt` removed from all commits via `git filter-repo`; verified: zero trees contain the path |
-| `arena/01a0c9d5-socopilot` (PR head) | ✅ purged (force-pushed rewrite; final tree byte-identical) |
-| `master` branch | ⚠️ **still contains history with the token** — delete or rewrite `master` after the fix PR merges (see §6) |
-| Cached PR refs `refs/pull/1..4` (GitHub-side) | ⚠️ **not purgeable via API** — requires a GitHub Support request ("please drop cached PR views for gm-prog/socopilot after a history rewrite") |
-| Any existing local clones | ⚠️ re-clone after the rewrite: `git fetch --prune && git gc --aggressive --prune=now`, or simply `rm -rf` and clone fresh |
+| `main` (default branch) | ✅ **purged (second run)** — blob `b848f4c` removed from all commits via `--strip-blobs-with-ids`; verified by SHA: `git rev-list --objects origin/main \| grep b848f4c` → no output, `main` now 42 commits |
+| `alerts-page-store-migration` | ✅ **purged (second run)** — rewritten `e2e488b`, verified clean |
+| `arena/01a0ccea-socopilot` | ✅ **purged (second run)** — rewritten `b9da463`, verified clean |
+| `master` branch | ✅ deleted in first purge |
+| Cached PR refs `refs/pull/1..8` (GitHub-side) | ⚠️ **not purgeable via API** — still serve old history with the blob; requires a GitHub Support request (see `docs/GITHUB_SUPPORT_TICKET.md`). Attempts to `git push --mirror` are rejected with `deny updating a hidden ref` |
+| Any existing local clones | ⚠️ re-clone after the second rewrite: `git fetch --prune` will show forced updates on all three branches; `rm -rf` and clone fresh is safest |
 
 The token itself expired ~2026-06-28 (exp claim) and is invalidated outright
-once §1 is performed.
+once §1 is performed. Severity of remaining `refs/pull/*` exposure is hygiene,
+not active incident, because the token is expired and `SECRET_KEY` rotation
+(§1) invalidates all JWTs.
+
+**Verification checklist (use blob SHA, not path):**
+```bash
+git rev-list --objects origin/main | grep b848f4c67b2635dcfd23b0107072eba560b7aeb4  # expect: nothing
+git rev-list --objects origin/main | grep -c 'frontend/public/token.txt'          # expect: 0
+git rev-list --objects origin/main | grep -c '\.soc_token'                        # expect: 0
+git rev-list --objects --all | grep b848f4c67b2635dcfd23b0107072eba560b7aeb4       # expect: hits only in refs/pull/* (needs Support)
+```
 
 ---
 
